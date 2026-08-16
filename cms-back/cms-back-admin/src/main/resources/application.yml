@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: cms-back-admin
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3307/take_out?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: takeout_rw
+    password: TakeoutRw@123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    # 默认用 spring.datasource；一般不用再写 url/user/password
+    # 本地若想暂时关掉迁移：
+    # enabled: false
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: 0
+      timeout: 3s
+  #激活本地配置（本地有application-local.yml时，会优先使用本地配置）
+  profiles:
+    include: local
+  servlet:
+    multipart:
+      max-file-size: 5MB # 单文件上限（前端约 2MB，后端稍宽）
+      max-request-size: 5MB
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
