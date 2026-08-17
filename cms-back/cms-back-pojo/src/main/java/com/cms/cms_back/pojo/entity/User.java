@@ -9,7 +9,7 @@ import com.cms.cms_back.pojo.enums.UserStatus;
 
 import lombok.Data;
 
-@TableName("user")
+@TableName("users")
 @Data
 public class User {
 
@@ -24,7 +24,7 @@ public class User {
 
     private UserStatus status;
 
-    private LocalDateTime createAt;
+    private LocalDateTime createdAt;
 
-    private LocalDateTime updateAt;
+    private LocalDateTime updatedAt;
 }

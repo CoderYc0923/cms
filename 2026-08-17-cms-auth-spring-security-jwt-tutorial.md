@@ -1,377 +1,209 @@
-# CMS 鉴权体系教程：Spring Security + JWT 双 Token
+# CMS 鉴权体系教程：Spring Security + JWT 双 Token（Nimbus）
 
-**日期：** 2026-08-17（按当前仓库代码形态更新）  
-**适用项目：** `cms-back`（Spring Boot 4.x 多模块）+ `cms-front`（admin / docs）  
-**状态：** 方案已拍板；骨架已部分落地；鉴权核心逻辑待补全  
-**前置：** MySQL + Redis + Liquibase + 全局异常（`ApiResult`）+ TraceIdFilter + MyBatis-Plus
-
----
-
-## 0. 当前进度一览（对齐仓库）
-
-| 项 | 状态 | 位置 |
-|----|------|------|
-| `ApiResult` 统一响应 | ✅ 已有 | `common/api/ApiResult.java` |
-| `BizException` / `ErrorCode` | ✅ 已有 | `common/exception/` |
-| `GlobalExceptionHandler` → `ApiResult` | ✅ 已有 | `framework/exception/` |
-| `CmsSecurityProperties` + 启用 | ✅ 已有 | `framework/security/`，yml 前缀 `security` |
-| Security / Redis / OAuth2-RS 依赖 | ✅ 已有 | `framework/pom.xml` |
-| MyBatis-Plus（system starter + pojo annotation） | ✅ 已有 | `system` / `pojo` pom |
-| `MybatisPlusConfig` + `@MapperScan` | ✅ 已有 | `framework/config/` |
-| `User` / `UserStatus` / `UserMapper` | ✅ 已有 | pojo + system |
-| `LoginDTO` / `RefreshDTO` / `TokenResponseVO` | ✅ 已有 | pojo dto/vo |
-| `AuthController` 骨架 | ✅ 路径已对，方法体未实现 | `admin/controllers/auth/` |
-| `JwtService` / `RefreshTokenStore` / `AuthService` | ❌ 待写 | 建议 `framework/security/` |
-| `JwtAuthenticationFilter` + EntryPoint | ❌ 待写 | `framework/security/` |
-| `SecurityFilterChain` 完整规则 | ❌ 待写 | 扩展现有 `CmsSecurityConfig` |
-| JJWT 签发依赖（若自签 JWT） | ❌ 待加 | 见下文 |
-| 种子管理员 Liquibase | ❌ 待加 | changelog |
-| 前端无感续签拦截器 | ❌ 待做 | `cms-front` |
-
-本文后续代码 **以当前命名为准**，不要再混用教程旧名（如 `LoginRequest`、`TokenResponse`、`cms.security`）。
+**日期：** 2026-08-17（按当前仓库形态更新；未完成部分给出完整可粘贴代码）  
+**适用：** `cms-back` Spring Boot 4.x 多模块  
+**JWT 库选型：** **Nimbus JOSE + JWT**（与已引入的 `spring-boot-starter-oauth2-resource-server` 一致）  
+**成功响应：** `ApiResult.success` → `{ code: 200, message: "success", data }`  
+**配置前缀：** `security.*`（不是 `cms.security`）
 
 ---
 
-## 1. 背景与目标
+## 0. Nimbus vs JJWT：哪个好？本项目用哪个？
 
-| 端 | 规则 |
+| | **Nimbus** | **JJWT** |
+|--|------------|----------|
+| 与 Spring Security | **官方 oauth2-resource-server / JwtDecoder 就用它** | 第三方，需另加依赖 |
+| 你们仓库 | `framework` **已有** `spring-boot-starter-oauth2-resource-server` | 尚未引入 |
+| API 风格 | 偏标准 JOSE（`SignedJWT`、`JWSHeader`） | 链式 `Jwts.builder()`，更「顺口」 |
+| 文档/示例 | Spring 文档多 | 中文教程多 |
+| 额外 jar | 一般 **0**（传递依赖已有） | 至少 `jjwt-api/impl/jackson` 三个 |
+
+**结论（本项目）：用 Nimbus，不要再引 JJWT。**
+
+- 少一套依赖、和 Spring Security 生态一致。  
+- 下面 `JwtService` 全部用 `com.nimbusds.jose.*` / `com.nimbusds.jwt.*`。  
+- 不必为了「好写」再装 JJWT；Nimbus 代码稍多几行，但足够清晰。
+
+HS256 密钥长度：**至少 32 字节**（你们 local 密钥已够长）。
+
+---
+
+## 1. 当前进度
+
+| 项 | 状态 |
 |----|------|
-| **admin** `/api/admin/**` | 必须登录；Token 无效 → **401** |
-| **public** `/api/public/**` | 无需登录；草稿对 public → **404**（业务层） |
-| MVP | 单一运营角色，不做复杂 RBAC |
-
-统一响应（成功 / 失败同一形状）：
-
-```json
-{ "code": 200, "message": "success", "data": { } }
-{ "code": 401, "message": "未登录或登录已失效", "data": null }
-```
-
-> 当前 `ApiResult.success` 成功码为 **200**（不是 0），失败码与 `ErrorCode` / HTTP 对齐。
+| ApiResult / BizException / GlobalExceptionHandler | ✅ |
+| CmsSecurityProperties + Enable | ✅（`prefix = "security"`） |
+| Security / Redis / oauth2-resource-server 依赖 | ✅ |
+| MyBatis-Plus + UserMapper + User/UserStatus | ✅ |
+| LoginDTO / RefreshDTO / TokenResponseVO | ✅ |
+| AuthController 路径与方法签名 | ✅（方法体仍 `return null`） |
+| JwtService（Nimbus）/ RefreshTokenStore / AuthService | ❌ 下文完整代码 |
+| JwtAuthenticationFilter + EntryPoint/DeniedHandler | ❌ 下文完整代码 |
+| SecurityFilterChain + PasswordEncoder + CORS | ❌ 下文完整代码 |
+| 种子管理员 + 前端续签 | ❌ 下文完整代码 |
 
 ---
 
-## 2. 心智模型（简）
+## 2. 约定速查
 
-```text
-请求
-  → TraceIdFilter
-  → Spring Security 链（JWT Bearer / 路径放行）
-  → AuthController / 业务 Controller
-  → Service（throw BizException）
-  → GlobalExceptionHandler 或 Security EntryPoint
-       ↓
-     ApiResult
-```
-
-双 Token：
-
-```text
-Access  = JWT，30m，Header: Authorization: Bearer ...
-Refresh = 随机串，7d，Redis；每次 /refresh 轮转（旧票作废）
-无感续签 = 前端 401 时调 /refresh 再重试（后端只提供接口）
-```
+| 项 | 值 |
+|----|-----|
+| Access | JWT HS256，30m，`Authorization: Bearer ...` |
+| Refresh | 随机串，7d，Redis，**每次 refresh 轮转** |
+| Redis key | `cms:auth:refresh:{token}` |
+| 登录/刷新/退出 | `/api/admin/auth/login\|refresh\|logout` |
+| public | `/api/public/**` 匿名 |
+| 成功 code | **200**（`ApiResult.success`） |
+| 失败 | `ApiResult.fail` + HTTP 状态 |
 
 ---
 
-## 3. 已拍板约定
+## 3. 依赖（保持现状 + 说明）
 
-| 项 | 约定 |
-|----|------|
-| 配置前缀 | **`security.*`**（与现网 yml 一致，不是 `cms.security`） |
-| Access | JWT HS256，TTL `security.access-token-ttl`（默认 30m） |
-| Refresh | 不透明串 + Redis，TTL `security.refresh-token-ttl`（默认 7d），**轮转** |
-| 密码 | BCrypt；列名 `password` 存哈希 |
-| 成功体 | `ApiResult.success(data)` → code=200 |
-| 失败体 | `ApiResult.fail(code, message)` + HTTP status |
-
-### API
-
-| 方法 | 路径 | 匿名 |
-|------|------|------|
-| POST | `/api/admin/auth/login` | 是 |
-| POST | `/api/admin/auth/refresh` | 是 |
-| POST | `/api/admin/auth/logout` | 建议带 refresh body；可 permitAll 或 authenticated |
-| * | `/api/admin/**` | 否 |
-| * | `/api/public/**` | 是 |
-| GET | `/actuator/health` | 是 |
-
-### Redis
-
-```text
-cms:auth:refresh:{refreshToken} → {"userId":1,"username":"admin"}
-TTL = refresh 有效期
-```
-
----
-
-## 4. 模块与命名（当前风格）
-
-```text
-cms-back-common
-  api/ApiResult.java
-  exception/BizException.java, ErrorCode.java
-
-cms-back-pojo
-  dto/auth/LoginDTO.java, RefreshDTO.java          ← 入参
-  vo/auth/TokenResponseVO.java                   ← 出参
-  entity/User.java
-  enums/UserStatus.java                          ← 包名 enums（不要用 enum）
-
-cms-back-system
-  mapper/UserMapper.java
-  （可放 Auth 相关查询；编排也可放 framework）
-
-cms-back-framework
-  config/MybatisPlusConfig.java
-  security/CmsSecurityProperties.java
-  security/CmsSecurityConfig.java                ← 将扩展为完整 SecurityFilterChain
-  exception/GlobalExceptionHandler.java
-  web/TraceIdFilter.java
-  security/JwtService.java                       ← 待写
-  security/RefreshTokenStore.java                ← 待写
-  security/AuthService.java                      ← 待写（推荐放这，少绕依赖）
-  security/JwtAuthenticationFilter.java          ← 待写
-  security/RestAuthEntryPoint.java               ← 待写
-
-cms-back-admin
-  controllersS/auth/AuthController.java           ← 注意：包名是 controllersS
-```
-
-依赖方向：`admin → framework → system → pojo → common`。
-
-### Maven 落点（已按此落地）
-
-| 依赖 | 模块 |
-|------|------|
-| `mybatis-plus-spring-boot4-starter` | **system** |
-| `mybatis-plus-annotation` | **pojo** |
-| `security` / `oauth2-resource-server` / `data-redis` | **framework** |
-| mysql、liquibase、actuator | **admin** |
-
-自签 JWT 时再在 **framework** 增加 JJWT：
+`cms-back-framework/pom.xml` **已有即可**，不必再加 JJWT：
 
 ```xml
 <dependency>
-  <groupId>io.jsonwebtoken</groupId>
-  <artifactId>jjwt-api</artifactId>
-  <version>0.12.6</version>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+<!-- 传递引入 Nimbus JOSE/JWT，供 JwtService 使用 -->
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
 </dependency>
 <dependency>
-  <groupId>io.jsonwebtoken</groupId>
-  <artifactId>jjwt-impl</artifactId>
-  <version>0.12.6</version>
-  <scope>runtime</scope>
-</dependency>
-<dependency>
-  <groupId>io.jsonwebtoken</groupId>
-  <artifactId>jjwt-jackson</artifactId>
-  <version>0.12.6</version>
-  <scope>runtime</scope>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-data-redis</artifactId>
 </dependency>
 ```
-
-（也可用 Nimbus 自签；JJWT 更直观。`oauth2-resource-server` 可保留或去掉，二选一即可。）
 
 ---
 
-## 5. 已落地代码（以仓库为准，勿重复造同名类）
+## 4. 建议先修正的已有问题
 
-### 5.1 配置 `application.yml`
+### 4.1 `User` 实体与表对齐
 
-```yaml
-security:
-  jwt-secret: ${CMS_JWT_SECRET:please-change-me-to-a-very-long-secret-key-32bytes}
-  access-token-ttl: 30m
-  refresh-token-ttl: 7d
-```
-
-`application-local.yml`：
-
-```yaml
-security:
-  jwt-secret: cms-jwt-secret-for-local-2026@123!
-```
-
-启动：
-
-```powershell
-mvn spring-boot:run -pl cms-back-admin "-Dspring-boot.run.profiles=local"
-```
-
-### 5.2 `CmsSecurityProperties`（已有）
+Liquibase 表名是 **`users`**，列是 `created_at` / `updated_at`：
 
 ```java
-@ConfigurationProperties(prefix = "security")
-@Data
-public class CmsSecurityProperties {
-    private String jwtSecret;
-    private Duration accessTokenTtl = Duration.ofMinutes(30);
-    private Duration refreshTokenTtl = Duration.ofDays(7);
-}
+@TableName("users")
+private LocalDateTime createdAt;
+private LocalDateTime updatedAt;
 ```
 
-```java
-@Configuration
-@EnableConfigurationProperties(CmsSecurityProperties.class)  // 必须是 Properties，不是 Config 自己
-public class CmsSecurityConfig {
-}
+（不要用 `@TableName("user")`、`createAt`。）
+
+### 4.2 TraceIdFilter：统一挂进 Security（推荐）
+
+为和 JWT 同一条链路、顺序可控，**不要**再用 `@Component` 自动注册，改为在 `SecurityFilterChain` 里：
+
+```text
+TraceIdFilter → JwtAuthenticationFilter → …
 ```
 
-### 5.3 `ApiResult`（已有）
-
-```java
-public static <T> ApiResult<T> success(T data) {
-    return new ApiResult<>(200, "success", data);
-}
-public static <T> ApiResult<T> fail(int code, String message) {
-    return new ApiResult<>(code, message, null);
-}
-```
-
-### 5.4 DTO / VO（已有）
-
-- `LoginDTO`：`username` + `@Size(min=8, max=16)` 的 `password`  
-- `RefreshDTO`：`refreshToken`  
-- `TokenResponseVO`：`accessToken` / `refreshToken` / `@Builder.Default tokenType="Bearer"` / `expiresIn`
-
-### 5.5 `User` + `UserStatus`（已有，有两处建议修正）
-
-```java
-@TableName("user")           // ⚠️ Liquibase 表名是 users，建议改成 "users"
-private UserStatus status;    // @EnumValue 在枚举 code 上，正确；实体用枚举不需要 @JsonCreator
-private LocalDateTime createAt;  // ⚠️ 列是 created_at → 建议字段 createdAt
-private LocalDateTime updateAt;  // ⚠️ 建议 updatedAt
-```
-
-`UserStatus`：包名 `pojo.enums`，`@EnumValue` 标在 `code` 上即可做 DB 互转。
-
-### 5.6 `AuthController`（已有骨架，待接 Service）
-
-```java
-@RestController
-@RequestMapping("/api/admin/auth")
-public class AuthController {
-
-    @PostMapping("/login")
-    public ApiResult<TokenResponseVO> login(@Valid @RequestBody LoginDTO loginReq) {
-        return null; // TODO → ApiResult.success(authService.login(...))
-    }
-
-    @PostMapping("/refresh")
-    public ApiResult<TokenResponseVO> refresh(@Valid @RequestBody RefreshDTO refreshTokenReq) {
-        return null;
-    }
-
-    @PostMapping("/logout")
-    public ApiResult<Void> logout(@Valid @RequestBody RefreshDTO refreshTokenReq) {
-        return null;
-    }
-}
-```
-
-目标实现：
-
-```java
-@RequiredArgsConstructor
-public class AuthController {
-    private final AuthService authService;
-
-    @PostMapping("/login")
-    public ApiResult<TokenResponseVO> login(@Valid @RequestBody LoginDTO loginReq) {
-        return ApiResult.success(
-                authService.login(loginReq.getUsername(), loginReq.getPassword()));
-    }
-
-    @PostMapping("/refresh")
-    public ApiResult<TokenResponseVO> refresh(@Valid @RequestBody RefreshDTO req) {
-        return ApiResult.success(authService.refresh(req.getRefreshToken()));
-    }
-
-    @PostMapping("/logout")
-    public ApiResult<Void> logout(@Valid @RequestBody RefreshDTO req) {
-        authService.logout(req.getRefreshToken());
-        return ApiResult.success();
-    }
-}
-```
-
-### 5.7 异常处理（已统一 `ApiResult`）
-
-```java
-return ResponseEntity.status(httpStatus).body(ApiResult.fail(code, message));
-```
-
-Security 未认证 **不保证**进 Advice，要用 `AuthenticationEntryPoint` 同样写 `ApiResult.fail(401, ...)`。
+完整步骤见：`2026-08-17-cms-traceid-in-security-tutorial.md`。
 
 ---
 
-## 6. 待实现：完整示例代码（按当前风格）
+## 5. 完整待实现代码（Nimbus + 当前命名）
 
-### 6.1 `JwtService`
+以下均可直接粘贴到对应路径。
 
-路径：`framework/security/JwtService.java`
+---
+
+### 5.1 `JwtService`（Nimbus 签发 / 校验）
+
+**路径：** `cms-back-framework/src/main/java/com/cms/cms_back/framework/security/JwtService.java`
 
 ```java
 package com.cms.cms_back.framework.security;
 
 import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
 import java.time.Instant;
 import java.util.Date;
 
-import javax.crypto.SecretKey;
-
 import org.springframework.stereotype.Service;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.crypto.MACVerifier;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 
+/**
+ * Access Token：用 Nimbus 做 HS256 签发与校验。
+ * 依赖来自 spring-boot-starter-oauth2-resource-server（无需 JJWT）。
+ */
 @Service
 public class JwtService {
 
     private final CmsSecurityProperties properties;
-    private final SecretKey key;
+    private final byte[] secret;
 
     public JwtService(CmsSecurityProperties properties) {
         this.properties = properties;
-        this.key = Keys.hmacShaKeyFor(properties.getJwtSecret().getBytes(StandardCharsets.UTF_8));
+        this.secret = properties.getJwtSecret().getBytes(StandardCharsets.UTF_8);
+        if (this.secret.length < 32) {
+            throw new IllegalStateException("security.jwt-secret 长度至少 32 字节（HS256）");
+        }
     }
 
+    /** 签发 Access JWT：sub=userId，自定义 claim username */
     public String createAccessToken(Long userId, String username) {
         Instant now = Instant.now();
         Instant exp = now.plus(properties.getAccessTokenTtl());
-        return Jwts.builder()
-                .subject(String.valueOf(userId))
-                .claim("username", username)
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(exp))
-                .signWith(key)
-                .compact();
+        try {
+            JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                    .subject(String.valueOf(userId))
+                    .claim("username", username)
+                    .issueTime(Date.from(now))
+                    .expirationTime(Date.from(exp))
+                    .build();
+            SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
+            signedJWT.sign(new MACSigner(secret));
+            return signedJWT.serialize();
+        } catch (JOSEException e) {
+            throw new IllegalStateException("签发 Access Token 失败", e);
+        }
     }
 
     public long getAccessExpiresInSeconds() {
         return properties.getAccessTokenTtl().toSeconds();
     }
 
-    public Claims parseAndValidate(String accessToken) {
-        return Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(accessToken)
-                .getPayload();
+    /**
+     * 校验签名 + 未过期，返回 claims。
+     * 失败抛 JOSEException / ParseException / 业务包装，由过滤器当作未登录处理。
+     */
+    public JWTClaimsSet parseAndValidate(String accessToken) throws ParseException, JOSEException {
+        SignedJWT signedJWT = SignedJWT.parse(accessToken);
+        if (!signedJWT.verify(new MACVerifier(secret))) {
+            throw new JOSEException("invalid jwt signature");
+        }
+        JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
+        Date exp = claims.getExpirationTime();
+        if (exp == null || exp.before(new Date())) {
+            throw new JOSEException("jwt expired");
+        }
+        return claims;
     }
 }
 ```
 
-### 6.2 `RefreshTokenStore`
+---
 
-路径：`framework/security/RefreshTokenStore.java`
+### 5.2 `RefreshTokenStore`
+
+**路径：** `.../framework/security/RefreshTokenStore.java`
 
 ```java
 package com.cms.cms_back.framework.security;
 
-import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -441,17 +273,30 @@ public class RefreshTokenStore {
             this.username = username;
         }
 
-        public Long getUserId() { return userId; }
-        public void setUserId(Long userId) { this.userId = userId; }
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
+        public Long getUserId() {
+            return userId;
+        }
+
+        public void setUserId(Long userId) {
+            this.userId = userId;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
     }
 }
 ```
 
-### 6.3 `AuthService`
+---
 
-路径：`framework/security/AuthService.java`
+### 5.3 `AuthService`
+
+**路径：** `.../framework/security/AuthService.java`
 
 ```java
 package com.cms.cms_back.framework.security;
@@ -498,10 +343,11 @@ public class AuthService {
         return issueTokens(user.getId(), user.getUsername());
     }
 
+    /** 校验 refresh → 作废旧票 → 发新双 Token（轮转） */
     public TokenResponseVO refresh(String refreshToken) {
         var session = refreshTokenStore.find(refreshToken)
                 .orElseThrow(() -> BizException.unauthorized("登录已失效，请重新登录"));
-        refreshTokenStore.revoke(refreshToken); // 轮转
+        refreshTokenStore.revoke(refreshToken);
         return issueTokens(session.getUserId(), session.getUsername());
     }
 
@@ -519,7 +365,11 @@ public class AuthService {
 }
 ```
 
-### 6.4 `JwtAuthenticationFilter`
+---
+
+### 5.4 `JwtAuthenticationFilter`
+
+**路径：** `.../framework/security/JwtAuthenticationFilter.java`
 
 ```java
 package com.cms.cms_back.framework.security;
@@ -534,8 +384,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jwt.JWTClaimsSet;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -559,16 +410,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7).trim();
             try {
-                Claims claims = jwtService.parseAndValidate(token);
+                JWTClaimsSet claims = jwtService.parseAndValidate(token);
                 Long userId = Long.valueOf(claims.getSubject());
-                String username = claims.get("username", String.class);
+                String username = (String) claims.getClaim("username");
                 var auth = new UsernamePasswordAuthenticationToken(
                         userId,
                         null,
                         List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
                 auth.setDetails(username);
                 SecurityContextHolder.getContext().setAuthentication(auth);
-            } catch (JwtException | IllegalArgumentException ignored) {
+            } catch (JOSEException | java.text.ParseException | RuntimeException ignored) {
                 SecurityContextHolder.clearContext();
             }
         }
@@ -577,7 +428,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 }
 ```
 
-### 6.5 `RestAuthEntryPoint`（401 JSON = ApiResult）
+---
+
+### 5.5 `RestAuthEntryPoint` / `RestAccessDeniedHandler`
+
+**路径：** `.../framework/security/RestAuthEntryPoint.java`
 
 ```java
 package com.cms.cms_back.framework.security;
@@ -610,50 +465,132 @@ public class RestAuthEntryPoint implements AuthenticationEntryPoint {
             HttpServletRequest request,
             HttpServletResponse response,
             AuthenticationException authException) throws IOException {
-        response.setStatus(ErrorCode.UNAUTHORIZED.getHttpStatus());
+        write(response, ErrorCode.UNAUTHORIZED);
+    }
+
+    private void write(HttpServletResponse response, ErrorCode errorCode) throws IOException {
+        response.setStatus(errorCode.getHttpStatus());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
         objectMapper.writeValue(
                 response.getOutputStream(),
-                ApiResult.fail(ErrorCode.UNAUTHORIZED.getCode(), ErrorCode.UNAUTHORIZED.getMessage()));
+                ApiResult.fail(errorCode.getCode(), errorCode.getMessage()));
     }
 }
 ```
 
-（`RestAccessDeniedHandler` 同理，用 `ErrorCode.FORBIDDEN`。）
-
-### 6.6 扩展 `CmsSecurityConfig`（SecurityFilterChain）
-
-把现有空 `CmsSecurityConfig` 扩成：
+**路径：** `.../framework/security/RestAccessDeniedHandler.java`
 
 ```java
+package com.cms.cms_back.framework.security;
+
+import java.io.IOException;
+
+import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.stereotype.Component;
+
+import com.cms.cms_back.common.api.ApiResult;
+import com.cms.cms_back.common.exception.ErrorCode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+@Component
+public class RestAccessDeniedHandler implements AccessDeniedHandler {
+
+    private final ObjectMapper objectMapper;
+
+    public RestAccessDeniedHandler(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public void handle(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            AccessDeniedException accessDeniedException) throws IOException {
+        response.setStatus(ErrorCode.FORBIDDEN.getHttpStatus());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        objectMapper.writeValue(
+                response.getOutputStream(),
+                ApiResult.fail(ErrorCode.FORBIDDEN.getCode(), ErrorCode.FORBIDDEN.getMessage()));
+    }
+}
+```
+
+---
+
+### 5.6 完整 `CmsSecurityConfig`（替换空壳）
+
+**路径：** `.../framework/security/CmsSecurityConfig.java`
+
+```java
+package com.cms.cms_back.framework.security;
+
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
 @Configuration
 @EnableWebSecurity
 @EnableConfigurationProperties(CmsSecurityProperties.class)
 public class CmsSecurityConfig {
 
-    // 注入 JwtAuthenticationFilter、RestAuthEntryPoint、RestAccessDeniedHandler
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RestAuthEntryPoint authEntryPoint;
+    private final RestAccessDeniedHandler accessDeniedHandler;
+
+    public CmsSecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            RestAuthEntryPoint authEntryPoint,
+            RestAccessDeniedHandler accessDeniedHandler) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.authEntryPoint = authEntryPoint;
+        this.accessDeniedHandler = accessDeniedHandler;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable())
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/api/admin/auth/login", "/api/admin/auth/refresh").permitAll()
-                .requestMatchers("/api/admin/auth/logout").permitAll() // 或 authenticated，按产品定
-                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/admin/**").authenticated()
-                .anyRequest().permitAll())
-            .exceptionHandling(ex -> ex
-                .authenticationEntryPoint(authEntryPoint)
-                .accessDeniedHandler(accessDeniedHandler))
-            .cors(Customizer.withDefaults());
+        http
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/public/**").permitAll()
+                        .requestMatchers(
+                                "/api/admin/auth/login",
+                                "/api/admin/auth/refresh",
+                                "/api/admin/auth/logout").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/admin/**").authenticated()
+                        .anyRequest().permitAll())
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .cors(Customizer.withDefaults());
 
-        // TraceIdFilter：若已是 @Component，不要再 addFilter，避免执行两次
+        // TraceId 去掉 @Component，仅在此注册；顺序：TraceId → JWT
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(traceIdFilter, JwtAuthenticationFilter.class);
         return http.build();
+    }
+
+    @Bean
+    public TraceIdFilter traceIdFilter() {
+        return new TraceIdFilter();
     }
 
     @Bean
@@ -663,75 +600,231 @@ public class CmsSecurityConfig {
 }
 ```
 
+> `TraceIdFilter` 类本身见 `2026-08-17-cms-traceid-in-security-tutorial.md`（无 `@Component`）。
+> `securityFilterChain` 方法需注入 `TraceIdFilter traceIdFilter` 参数。
+
 ---
 
-## 7. 前端无感续签（admin）
+### 5.7 CORS
 
-```javascript
-// 401 → 单飞 refresh → 重试原请求；refresh 失败 → 跳登录
-// Authorization: Bearer <accessToken>
-// body: { refreshToken }
-```
+**路径：** `.../framework/security/CorsConfig.java`
 
-与后端路径：`POST /api/admin/auth/refresh`，响应：
+```java
+package com.cms.cms_back.framework.security;
 
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "accessToken": "...",
-    "refreshToken": "...",
-    "tokenType": "Bearer",
-    "expiresIn": 1800
-  }
+import java.util.List;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+@Configuration
+public class CorsConfig {
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setExposedHeaders(List.of("X-Trace-Id", "Authorization"));
+        config.setAllowCredentials(true);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
 }
 ```
 
 ---
 
-## 8. 自测
+### 5.8 完整 `AuthController`
 
-```powershell
-curl -s -X POST http://127.0.0.1:8080/api/admin/auth/login `
-  -H "Content-Type: application/json" `
-  -d "{\"username\":\"admin\",\"password\":\"admin123456\"}"
+**路径：** `admin/controllers/auth/AuthController.java`
 
-curl -i http://127.0.0.1:8080/api/admin/spaces
-# 期望 401 + ApiResult
+```java
+package com.cms.cms_back.admin.controllers.auth;
 
-curl -i http://127.0.0.1:8080/api/admin/spaces `
-  -H "Authorization: Bearer <accessToken>"
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.cms.cms_back.common.api.ApiResult;
+import com.cms.cms_back.framework.security.AuthService;
+import com.cms.cms_back.pojo.dto.auth.LoginDTO;
+import com.cms.cms_back.pojo.dto.auth.RefreshDTO;
+import com.cms.cms_back.pojo.vo.auth.TokenResponseVO;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/admin/auth")
+@RequiredArgsConstructor
+public class AuthController {
+
+    private final AuthService authService;
+
+    @PostMapping("/login")
+    public ApiResult<TokenResponseVO> login(@Valid @RequestBody LoginDTO loginReq) {
+        return ApiResult.success(
+                authService.login(loginReq.getUsername(), loginReq.getPassword()));
+    }
+
+    @PostMapping("/refresh")
+    public ApiResult<TokenResponseVO> refresh(@Valid @RequestBody RefreshDTO refreshTokenReq) {
+        return ApiResult.success(authService.refresh(refreshTokenReq.getRefreshToken()));
+    }
+
+    @PostMapping("/logout")
+    public ApiResult<Void> logout(@Valid @RequestBody RefreshDTO refreshTokenReq) {
+        authService.logout(refreshTokenReq.getRefreshToken());
+        return ApiResult.success();
+    }
+}
 ```
 
 ---
 
-## 9. 接下来 Checklist（只列未完成）
+### 5.9 种子管理员（Liquibase）
 
-1. [ ] framework 增加 JJWT（或选定 Nimbus 签发方案）  
-2. [ ] 修正 `User`：`@TableName("users")`，`createdAt` / `updatedAt`  
-3. [ ] 实现 `JwtService`、`RefreshTokenStore`、`AuthService`  
-4. [ ] 实现 `JwtAuthenticationFilter`、`RestAuthEntryPoint`（及 DeniedHandler）  
-5. [ ] 完善 `CmsSecurityConfig` 的 `SecurityFilterChain` + `PasswordEncoder`  
-6. [ ] `AuthController` 注入 Service，返回 `ApiResult.success(...)`  
-7. [ ] Liquibase 种子管理员（BCrypt）  
-8. [ ] curl 测通 login / 401 / refresh 轮转 / logout  
-9. [ ] admin 前端拦截器无感续签  
+先生成 BCrypt（临时跑一次）：
+
+```java
+System.out.println(new BCryptPasswordEncoder().encode("admin123456"));
+```
+
+**新建** `db/changelog/changes/002-seed-admin.yaml`：
+
+```yaml
+databaseChangeLog:
+  - changeSet:
+      id: 002-seed-admin
+      author: cyrus
+      changes:
+        - sqlFile:
+            path: db/changelog/changes/002-seed-admin.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: true
+```
+
+**`002-seed-admin.sql`**（把哈希换成你生成的）：
+
+```sql
+INSERT INTO users (username, password, display_name, status)
+SELECT 'admin', '$2a$10$请替换为BCrypt哈希', '管理员', 1
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'admin');
+```
+
+在 `db.changelog-master.yaml` 里 `include` 该文件。
 
 ---
 
-## 10. 和旧版教程的差异（避免照抄过期片段）
+### 5.10 前端无感续签（完整示意）
 
-| 旧教程 | 当前仓库 |
-|--------|----------|
-| `cms.security` | **`security`** |
-| `LoginRequest` / `TokenResponse` | **`LoginDTO` / `TokenResponseVO`** |
-| `ApiResponse.ok`，成功 code=0 | **`ApiResult.success`，成功 code=200** |
-| Controller 包 `controller` | **`controllers.auth`** |
-| 从零写 SecurityConfig | **已有 `CmsSecurityConfig`，在其上扩展** |
-| 异常返回 `Map` | **已统一 `ApiResult`** |
+```javascript
+import axios from 'axios'
+
+const api = axios.create({ baseURL: 'http://127.0.0.1:8080' })
+
+let refreshing = null
+
+function getAccess() { return localStorage.getItem('accessToken') }
+function getRefresh() { return localStorage.getItem('refreshToken') }
+function setTokens(data) {
+  localStorage.setItem('accessToken', data.accessToken)
+  localStorage.setItem('refreshToken', data.refreshToken)
+}
+function clearTokens() {
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+}
+
+api.interceptors.request.use((config) => {
+  const access = getAccess()
+  if (access) config.headers.Authorization = `Bearer ${access}`
+  return config
+})
+
+api.interceptors.response.use(
+  (res) => res,
+  async (error) => {
+    const original = error.config
+    const status = error.response?.status
+    const url = original?.url || ''
+    if (status === 401 && !original._retry && !url.includes('/auth/login') && !url.includes('/auth/refresh')) {
+      original._retry = true
+      if (!refreshing) {
+        refreshing = api
+          .post('/api/admin/auth/refresh', { refreshToken: getRefresh() })
+          .then((r) => {
+            const data = r.data.data
+            setTokens(data)
+            return data.accessToken
+          })
+          .catch((e) => {
+            clearTokens()
+            // window.location.href = '/login'
+            throw e
+          })
+          .finally(() => { refreshing = null })
+      }
+      const newAccess = await refreshing
+      original.headers.Authorization = `Bearer ${newAccess}`
+      return api(original)
+    }
+    return Promise.reject(error)
+  }
+)
+
+export default api
+```
 
 ---
 
-**文档路径：** `cms/2026-08-17-cms-auth-spring-security-jwt-tutorial.md`  
-按第 9 节 checklist 继续即可；需要把待实现类直接写入仓库时，说「按更新后的教程落地代码」。
+## 6. 自测
+
+```powershell
+# 登录
+curl -s -X POST http://127.0.0.1:8080/api/admin/auth/login `
+  -H "Content-Type: application/json" `
+  -d "{\"username\":\"admin\",\"password\":\"admin123456\"}"
+
+# 无票 → 401 ApiResult
+curl -i http://127.0.0.1:8080/api/admin/spaces
+
+# 带 Access
+curl -i http://127.0.0.1:8080/api/admin/spaces `
+  -H "Authorization: Bearer <accessToken>"
+
+# 刷新（旧 refresh 再刷应 401）
+curl -s -X POST http://127.0.0.1:8080/api/admin/auth/refresh `
+  -H "Content-Type: application/json" `
+  -d "{\"refreshToken\":\"<refreshToken>\"}"
+```
+
+---
+
+## 7. Checklist
+
+1. [ ] 修正 `User` 表名/时间字段  
+2. [ ] 粘贴 `JwtService`（Nimbus）、`RefreshTokenStore`、`AuthService`  
+3. [ ] 粘贴 Filter + EntryPoint + DeniedHandler  
+4. [ ] 替换完整 `CmsSecurityConfig` + `CorsConfig`  
+5. [ ] 补全 `AuthController`  
+6. [ ] 种子管理员  
+7. [ ] curl 测通；前端拦截器  
+
+---
+
+## 8. 小结
+
+- **JWT 库：用 Nimbus**（已有 oauth2-resource-server），**不必上 JJWT**。  
+- JJWT 只是写法更链式；对本仓库没有额外收益。  
+- 未完成部分上文均已给出 **完整可粘贴代码**，命名对齐 `LoginDTO` / `TokenResponseVO` / `ApiResult` / `security.*`。  
+
+需要我直接把这些类写入仓库时，说「按教程落地代码」即可。
