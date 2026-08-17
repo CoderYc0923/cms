@@ -1,0 +1,17 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-init-schema
+      author: cyrus
+      comment: 初始化 CMS 核心表（MySQL）
+      changes:
+        - sqlFile:
+            path: db/changelog/changes/001-init-schema.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: true
+      rollback:
+        - sql: DROP TABLE IF EXISTS publish_events;
+        - sql: DROP TABLE IF EXISTS articles;
+        - sql: DROP TABLE IF EXISTS nodes;
+        - sql: DROP TABLE IF EXISTS spaces;
+        - sql: DROP TABLE IF EXISTS users;
