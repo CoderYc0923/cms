@@ -1,0 +1,178 @@
+@import "resetAnt";
+@import "custom";
+@import "resetEditor";
+
+html,
+body,
+#app,
+#root {
+  height: 100%;
+  min-width: 1366px;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  color: var(--base-font-color);
+}
+
+.colorWeak {
+  filter: invert(80%);
+}
+
+.ant-layout {
+  height: 100vh;
+  min-height: 100vh;
+}
+
+canvas {
+  display: block;
+}
+
+body {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+p {
+  margin: 0;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 20px;
+  background: #eee;
+  cursor: pointer;
+}
+
+// 数据列表 样式
+.table-alert {
+  margin-bottom: 16px;
+}
+
+// 数据列表 操作
+.table-operator {
+  margin-bottom: 18px;
+
+  button {
+    margin-right: 8px;
+  }
+}
+
+// 数据列表 搜索条件
+.table-page-search-wrapper {
+
+  .ant-form-inline {
+    .ant-form-item {
+      display: flex;
+      margin-bottom: 24px;
+      margin-right: 0;
+
+      .ant-form-item-control-wrapper {
+        flex: 1 1;
+        display: inline-block;
+        vertical-align: middle;
+      }
+
+      >.ant-form-item-label {
+        line-height: 32px;
+        padding-right: 8px;
+        width: auto;
+      }
+
+      .ant-form-item-control {
+        height: 32px;
+        line-height: 32px;
+      }
+    }
+  }
+
+  .table-page-search-submitButtons {
+    display: block;
+    margin-bottom: 24px;
+    white-space: nowrap;
+  }
+}
+
+
+
+// 行内的表单项
+.inline-item {
+  display: inline-block;
+  margin-bottom: 0px;
+}
+
+// 表单项后说明文字
+.spanAfterItem {
+  color: #aaa;
+  margin-left: 8px;
+}
+
+.no-padding-btn {
+  padding: 0;
+}
+
+.extra-text {
+  font-size: 14px;
+  color: rgba(129, 129, 129, 0.64);
+}
+
+.flex-box-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  &_start {
+    align-items: flex-start;
+  }
+}
+
+.flex-box-row {
+  display: flex;
+  justify-content: center;
+
+  &_start {
+    align-items: flex-start;
+  }
+
+  .flex-25 {
+    flex: 0 0 25%;
+    width: 25%;
+  }
+
+  .flex-75 {
+    flex: 0 0 75%;
+    width: 75%;
+  }
+}
+
+// 隐藏滚动条
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: transparent;
+  }
+}
+
+.no-first-btn {
+  margin-left: 10px;
+}

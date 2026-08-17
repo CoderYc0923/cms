@@ -1,0 +1,49 @@
+// 记录项目中的公共样式
+@dangerous-color: #f35d5d;
+@primary-color: #66c;
+
+.ant-pro-grid-content-children > div {
+  background: #f0f2f5;
+}
+
+/* .ant-pro-sider-menu-icon {
+  margin-right: 10px;
+}
+.ant-pro-menu-item, .ant-pro-menu-item-title {
+  margin-left: 0px !important;
+} */
+
+// 红色按钮
+.red-btn {
+  background: @dangerous-color;
+  color: #fff;
+  border-color: @dangerous-color;
+  margin-top: 8px;
+}
+  
+.red-link-btn {
+  color: @dangerous-color;
+}
+
+// 超过一行省略
+.ellipsis {
+  white-space: nowrap; 
+  overflow: hidden; 
+  text-overflow: ellipsis;
+}
+
+// 选择框 文字左对齐
+.ant-select-selector {
+  text-align: left;
+}
+
+// 当前选中菜单标志
+/* .ant-menu-item-selected::after {
+  //width: 8px;
+  background-color: @primary-color;
+} */
+
+// 表格头部标题不允许换行
+.ant-table-thead > tr > th {
+  white-space: nowrap;
+}

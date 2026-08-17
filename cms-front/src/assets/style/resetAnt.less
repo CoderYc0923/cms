@@ -1,0 +1,159 @@
+// 修改弹窗Modal默认样式
+.ant-modal-content {
+  padding: 0 !important;
+}
+
+.ant-modal-header {
+  padding: 20px 24px;
+}
+
+.ant-modal-body {
+  padding: 24px 40px;
+  background: #ffffff;
+}
+
+.ant-modal-footer {
+  padding: 14px 40px;
+}
+
+// 按钮样式
+.ant-btn {
+  padding: 0 8px;
+}
+
+.ant-pro-basicLayout-content {
+  margin: 0;
+  background: #fff;
+}
+
+.ant-pro-top-nav-header {
+  box-shadow: 0px 2px 12px 0px rgba(0, 0, 0, 0.07);
+}
+
+.ant-layout-header,
+.ant-pro-basicLayout .ant-layout-header.ant-pro-fixed-header {
+  height: 66px !important;
+}
+
+.ant-pro-top-nav-header-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ant-pro-top-nav-header-menu .ant-menu.ant-menu-horizontal .ant-menu-item {
+  display: flex;
+  align-items: center;
+}
+
+/* .ant-menu-item-icon {
+  margin-right: 8px;
+  font-size: 16px !important;
+} */
+
+.ant-table-cell-with-append {
+  display: flex;
+  align-items: center;
+}
+
+.ant-menu-inline .ant-menu-item,
+.ant-menu-inline .ant-menu-submenu-title {
+  width: calc(100% - 8px) !important;
+}
+
+.ant-menu-inline.ant-menu-root .ant-menu-item,
+.ant-menu-inline.ant-menu-root .ant-menu-submenu-title {
+  line-height: 36px !important;
+  height: auto !important;
+  min-height: 36px;
+
+  >.ant-menu-title-content {
+    overflow: visible;
+    word-break: break-all;
+    white-space: normal;
+    line-height: 28px !important;
+  }
+}
+
+.ant-menu-inline .ant-menu-submenu-title,
+.ant-menu-sub.ant-menu-inline>.ant-menu-item,
+.ant-menu-sub.ant-menu-inline>.ant-menu-submenu>.ant-menu-submenu-title {
+  margin-top: 0px !important;
+  margin-bottom: 0px !important;
+  line-height: 36px !important;
+  height: auto !important;
+  min-height: 36px;
+
+  .ant-menu-title-content {
+    overflow: visible;
+    word-break: break-all;
+    white-space: normal;
+    line-height: 28px !important;
+  }
+}
+
+:where(.css-dev-only-do-not-override-htdnsb).ant-menu-light.ant-menu-inline .ant-menu-sub.ant-menu-inline {
+  background-color: #fff;
+}
+
+:where(.css-dev-only-do-not-override-htdnsb).ant-menu-light:not(.ant-menu-horizontal) .ant-menu-item:not(.ant-menu-item-selected):hover,
+:where(.css-dev-only-do-not-override-htdnsb).ant-menu-light:not(.ant-menu-horizontal) .ant-menu-submenu-title:hover {
+  color: var(--highlight-color) !important;
+  background-color: var(--hover-color);
+}
+
+.ant-menu-item-group {
+  &::after {
+    display: block;
+    content: "";
+    height: 1px;
+    background-color: #eee;
+    margin: 10px 31px 10px 11px;
+  }
+}
+
+.ant-menu-item-group-title {
+  color: var(--sidebar-group-color) !important;
+  line-height: 24px !important;
+  font-size: 17px !important;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+
+  &::before {
+    content: "";
+    width: 3px;
+    height: 14px;
+    background-color: var(--highlight-color);
+    margin-right: 8px;
+  }
+}
+
+.ant-anchor-link-title {
+  color: var(--base-font-color) !important;
+}
+
+.ant-anchor-link-active>.ant-anchor-link-title {
+  color: var(--highlight-color) !important;
+}
+
+.ant-anchor-link {
+  margin-bottom: 8px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+:where(.css-dev-only-do-not-override-htdnsb).ant-anchor-wrapper .ant-anchor .ant-anchor-link-title {
+  margin-block-end: 6px;
+}
+
+:where(.css-dev-only-do-not-override-htdnsb).ant-anchor-wrapper:not(.ant-anchor-wrapper-horizontal) .ant-anchor .ant-anchor-ink {
+  background-color: var(--highlight-color);
+}
+
+:where(.css-dev-only-do-not-override-htdnsb).ant-anchor-wrapper .ant-anchor {
+  padding-left: 24px;
+  margin-top: 24px;
+}
