@@ -19,15 +19,28 @@ spring:
     multipart:
       max-file-size: 5MB
       max-request-size: 5MB
-  profiles:
-    include: local
+
+logging:
+  level: # 日志级别
+    root: INFO # 根级别
+    com.cms: INFO # 包名
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus # 暴露的端点
+  endpoint:
+    health:
+      show-details: when-authorized # 健康检查时显示详细信息
+  metrics:
+    tags:
+      application: ${spring.application.name} # 应用名称
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml # 有 XML 时用；纯注解可省略
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 开发看 SQL；上线关掉
   global-config:
     db-config:
       id-type: auto
-      logic-delete-field: deleted_at # 逻辑删除字段

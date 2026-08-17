@@ -1,0 +1,14 @@
+logging:
+  level:
+    root: INFO
+    com.cms: INFO
+    com.baomidou.mybatisplus: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized

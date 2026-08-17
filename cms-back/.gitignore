@@ -34,3 +34,6 @@ build/
 
 .env
 **/application-local.yml
+
+logs/
+*.log
