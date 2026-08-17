@@ -1,0 +1,47 @@
+package com.cms.cms_back.framework.security;
+
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
+
+import org.springframework.stereotype.Service;
+
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
+
+@Service
+public class JwtService {
+
+    private final CmsSecurityProperties properties;
+    private final byte[] secret;
+
+    public JwtService(CmsSecurityProperties properties) {
+        this.properties = properties;
+        this.secret = properties.getJwtSecret().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** 签发Access JWT: sub=userId, 自定义 claim username */
+    public String createAccessToken(Long userId, String username) {
+        Instant now = Instant.now();
+        Instant exp = now.plus(properties.getAccessTokenTtl());
+        try {
+            /** 设置JWT Claims */
+            JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject(String.valueOf(userId))
+                .claim("username", username)
+                .issueTime(Date.from(now))
+                .expirationTime(Date.from(exp))
+                .build();
+            
+            SignedJWT signedJWT = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
+            signedJWT.sign(new MACSigner(secret));
+            return signedJWT.serialize();
+        } catch (JOSEException e) {
+           throw new IllegalStateException("签发Access JWT失败", e);
+        }
+    }
+}
