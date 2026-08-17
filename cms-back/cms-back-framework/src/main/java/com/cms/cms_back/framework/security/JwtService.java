@@ -1,6 +1,7 @@
 package com.cms.cms_back.framework.security;
 
 import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
 import java.time.Instant;
 import java.util.Date;
 
@@ -10,6 +11,7 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -43,5 +45,32 @@ public class JwtService {
         } catch (JOSEException e) {
            throw new IllegalStateException("签发Access JWT失败", e);
         }
+    }
+
+    /** 获取Access Token过期时间（秒） */
+    public long getAccessExpiresInSeconds() {
+        return properties.getAccessTokenTtl().getSeconds();
+    }
+
+    /**
+     * 解析并验证Access Token
+     * @param accessToken
+     * @return claims 声明
+     * @throws ParseException 解析异常
+     * @throws JOSEException 签名异常
+     */
+    public JWTClaimsSet parseAndValidate(String accessToken) throws ParseException, JOSEException {
+        SignedJWT signedJWT = SignedJWT.parse(accessToken);
+
+        if (!signedJWT.verify(new MACVerifier(secret))) {
+            throw new JOSEException("invalid jwt signature");
+        }
+
+        JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
+        Date exp = claims.getExpirationTime();
+        if (exp == null || exp.before(new Date())) {
+            throw new JOSEException("jwt expired");
+        }
+        return claims;
     }
 }

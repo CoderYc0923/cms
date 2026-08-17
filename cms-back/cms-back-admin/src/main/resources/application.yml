@@ -2,7 +2,7 @@ spring:
   application:
     name: cms-back-admin
   datasource:
-    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:cms}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3307}/${DB_NAME:cms}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: ${DB_USERNAME:cms}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
