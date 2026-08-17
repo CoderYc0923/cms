@@ -29,7 +29,7 @@ public class JwtService {
         Instant now = Instant.now();
         Instant exp = now.plus(properties.getAccessTokenTtl());
         try {
-            /** 设置JWT Claims */
+            /** 设置JWT Claims: 主题(用户ID)、自定义claim(用户名)、签发时间、过期时间 */
             JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
