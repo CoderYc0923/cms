@@ -8,7 +8,7 @@
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>4.1.0</version>
-		<relativePath/>
+		<relativePath />
 	</parent>
 
 	<groupId>com.cms</groupId>
@@ -63,7 +63,12 @@
 				<groupId>com.baomidou</groupId>
 				<artifactId>mybatis-plus-spring-boot4-starter</artifactId>
 				<version>${mybatis-plus.version}</version>
-			  </dependency>
+			</dependency>
+			<dependency>
+				<groupId>com.baomidou</groupId>
+				<artifactId>mybatis-plus-annotation</artifactId>
+				<version>${mybatis-plus.version}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 

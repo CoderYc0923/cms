@@ -19,5 +19,9 @@
 			<groupId>com.cms</groupId>
 			<artifactId>cms-back-pojo</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>com.baomidou</groupId>
+			<artifactId>mybatis-plus-spring-boot4-starter</artifactId>
+		  </dependency>
 	</dependencies>
 </project>

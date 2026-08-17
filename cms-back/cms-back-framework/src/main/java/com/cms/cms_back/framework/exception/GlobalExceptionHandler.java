@@ -1,8 +1,5 @@
 package com.cms.cms_back.framework.exception;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
@@ -23,6 +20,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import com.cms.cms_back.common.api.ApiResult;
 import com.cms.cms_back.common.exception.BizException;
 import com.cms.cms_back.common.exception.ErrorCode;
 
@@ -31,39 +29,21 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 全局异常处理器
- *
- * @author Cyrus
- * @date 2026-08-17
+ * 全局异常处理：HTTP 状态码 + 统一 body {@link ApiResult}
  */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
-    /** 处理业务异常 */
+    /** 业务异常（Service / Controller 主动 throw BizException） */
     @ExceptionHandler(BizException.class)
-    public ResponseEntity<Map<String, Object>> handleBiz(BizException e, HttpServletRequest request) {
+    public ResponseEntity<ApiResult<Void>> handleBiz(BizException e, HttpServletRequest request) {
         log.warn("biz error, path={}, code={}, msg={}", request.getRequestURI(), e.getCode(), e.getMessage());
-        return build(e.getHttpStatus(), e.getCode(), e.getMessage());
+        return of(e.getHttpStatus(), e.getCode(), e.getMessage());
     }
 
     /**
-     * 400：各类参数/校验问题
-     * 包括：
-     * - 方法参数验证异常
-     * - 绑定异常
-     * - 约束违反异常
-     * - 请求参数缺失异常
-     * - 请求参数类型不匹配异常
-     * - 媒体类型不支持异常
-     * - 媒体类型不接受异常
-     * - 路径变量缺失异常
-     * - 请求头缺失异常
-     * - 请求Cookie缺失异常
-     * - 请求值缺失异常
-     * - 请求绑定异常
-     * - 方法参数验证异常
-     * - 消息不可读异常
+     * 400：参数校验 / 绑定 / 媒体类型等问题
      */
     @ExceptionHandler({
             MethodArgumentNotValidException.class,
@@ -81,52 +61,36 @@ public class GlobalExceptionHandler {
             HandlerMethodValidationException.class,
             HttpMessageNotReadableException.class
     })
-    public ResponseEntity<Map<String, Object>> handleBadRequest(Exception e, HttpServletRequest request) {
+    public ResponseEntity<ApiResult<Void>> handleBadRequest(Exception e, HttpServletRequest request) {
         log.warn("bad request, path={}, ex={}", request.getRequestURI(), e.toString());
-        return build(
-                ErrorCode.BAD_REQUEST.getHttpStatus(),
-                ErrorCode.BAD_REQUEST.getCode(),
-                ErrorCode.BAD_REQUEST.getMessage());
+        return of(ErrorCode.BAD_REQUEST);
     }
 
     /**
-     * 处理404异常
-     * 包括：请求方法不支持异常、资源未找到异常、请求路径未找到异常
-     * @param e
-     * @param request
-     * @return
+     * 404：资源/路径不存在
      */
     @ExceptionHandler({
             HttpRequestMethodNotSupportedException.class,
             NoResourceFoundException.class,
             NoHandlerFoundException.class
     })
-    public ResponseEntity<Map<String, Object>> handleNotFoundException(Exception e, HttpServletRequest request) {
+    public ResponseEntity<ApiResult<Void>> handleNotFound(Exception e, HttpServletRequest request) {
         log.warn("not found, path={}, ex={}", request.getRequestURI(), e.toString());
-        return build(
-                ErrorCode.NOT_FOUND.getHttpStatus(),
-                ErrorCode.NOT_FOUND.getCode(),
-                ErrorCode.NOT_FOUND.getMessage());
+        return of(ErrorCode.NOT_FOUND);
     }
 
-    /**
-     * 处理未捕获的异常
-     * 返回500错误
-     */
+    /** 500：未预料异常 */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handle(Exception e, HttpServletRequest request) {
+    public ResponseEntity<ApiResult<Void>> handle(Exception e, HttpServletRequest request) {
         log.error("unhandled error, path={}", request.getRequestURI(), e);
-        return build(
-                ErrorCode.INTERNAL_ERROR.getHttpStatus(),
-                ErrorCode.INTERNAL_ERROR.getCode(),
-                ErrorCode.INTERNAL_ERROR.getMessage());
+        return of(ErrorCode.INTERNAL_ERROR);
     }
 
-    private static ResponseEntity<Map<String, Object>> build(int httpStatus, int code, String message) {
-        Map<String, Object> body = new HashMap<>(4);
-        body.put("code", code);
-        body.put("message", message);
-        body.put("data", null);
-        return ResponseEntity.status(httpStatus).body(body);
+    private static ResponseEntity<ApiResult<Void>> of(ErrorCode errorCode) {
+        return of(errorCode.getHttpStatus(), errorCode.getCode(), errorCode.getMessage());
+    }
+
+    private static ResponseEntity<ApiResult<Void>> of(int httpStatus, int code, String message) {
+        return ResponseEntity.status(httpStatus).body(ApiResult.fail(code, message));
     }
 }

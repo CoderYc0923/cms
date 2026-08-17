@@ -44,3 +44,8 @@ mybatis-plus:
   global-config:
     db-config:
       id-type: auto
+
+security:
+  jwt-secret: ${CMS_JWT_SECRET:please-change-me-to-a-very-long-secret-key-32bytes}
+  access-token-ttl: 30m
+  refresh-token-ttl: 7d
