@@ -19,4 +19,16 @@ public enum NodeType {
         this.code = code;
         this.message = message;
     }
+
+    public static NodeType fromCode(String code) {
+        if (code == null) {
+            return null;
+        }
+        for (NodeType nodeType : NodeType.values()) {
+            if (nodeType.getCode().equals(code)) {
+                return nodeType;
+            }
+        }
+        return null;
+    }
 }

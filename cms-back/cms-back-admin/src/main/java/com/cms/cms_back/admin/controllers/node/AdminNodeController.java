@@ -12,6 +12,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cms.cms_back.common.api.ApiResult;
+import com.cms.cms_back.pojo.dto.node.CreateNodeDTO;
+import com.cms.cms_back.pojo.dto.node.UpdateNodeDTO;
+import com.cms.cms_back.system.service.NodeService;
+
+import jakarta.validation.Valid;
 
 /**
  * 管理端节点（分组 / 菜单 / 文章节点）API 骨架。
@@ -21,18 +26,27 @@ import com.cms.cms_back.common.api.ApiResult;
 @RequestMapping("/api/admin/nodes")
 public class AdminNodeController {
 
+    private final NodeService nodeService;
+
+    public AdminNodeController(NodeService nodeService) {
+        this.nodeService = nodeService;
+    }
+
     @PostMapping
-    public ApiResult<Map<String, Object>> create(@RequestBody Map<String, Object> body) {
-        return ApiResult.success(Collections.emptyMap());
+    public ApiResult<Void> create(@Valid @RequestBody CreateNodeDTO body) {
+        nodeService.create(body);
+        return ApiResult.success();
     }
 
     @PutMapping("/{id}")
-    public ApiResult<Map<String, Object>> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ApiResult.success(Collections.emptyMap());
+    public ApiResult<Map<String, Object>> update(@PathVariable Long id, @Valid @RequestBody UpdateNodeDTO body) {
+        nodeService.update(id, body);
+        return ApiResult.success();
     }
 
     @DeleteMapping("/{id}")
     public ApiResult<Void> delete(@PathVariable Long id) {
+        nodeService.delete(id);
         return ApiResult.success();
     }
 }

@@ -3,3 +3,5 @@ databaseChangeLog:
       file: db/changelog/changes/001-init-schema.yaml
   - include:
       file: db/changelog/changes/002-add-admin-account.yaml
+  - include:
+      file: db/changelog/changes/003-add-two-spaces.yaml

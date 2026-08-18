@@ -16,12 +16,16 @@ public class PublishEvent {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 文章ID */
     private Long articleId;
 
+    /** 空间ID */
     private Long spaceId;
 
+    /** 事件类型 */
     private PublishEventType eventType;
 
+    /** 发生时间 */
     private LocalDateTime occurredAt;
 
     /** JSON 摘要，先按字符串存 */

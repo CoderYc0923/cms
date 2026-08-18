@@ -18,4 +18,16 @@ public enum PublishStatus {
         this.code = code;
         this.message = message;
     }
+
+    public static PublishStatus formCode(String code) {
+        if (code == null) {
+            return PublishStatus.DRAFT;
+        }
+        for (PublishStatus status : PublishStatus.values()) {
+            if (status.getCode().equals(code)) {
+                return status;
+            }
+        }
+        return PublishStatus.DRAFT;
+    }
 }

@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-add-two-spaces
+      author: Cyrus
+      comment: 添加两个空间
+      changes:
+        - sqlFile:
+            path: db/changelog/changes/003-add-two-spaces.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: true

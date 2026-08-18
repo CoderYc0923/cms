@@ -6,9 +6,9 @@ export const COLOR = {
 };
 
 export const MENU_TYPE = {
-  GROUP: 'GROUP',
-  MENU: 'MENU',
-  ARTICLE: 'ARTICLE',
+  GROUP: 'group',
+  MENU: 'menu',
+  ARTICLE: 'article',
 };
 
 export const MENU_TYPE_MSG = {
