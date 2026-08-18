@@ -34,9 +34,13 @@ export async function deleteItem (id) {
   })
 }
 
-/** 读/存正文 */
-export async function getArticle (id) {
-  return request(`/api/admin/articles/${id}`, {
+/**
+ * 按节点 ID 读文章详情。
+ * GET /api/admin/articles/{nodeId}
+ * data: { id, nodeId, content, publishStatus, publishAt, createdAt, updatedAt, createdBy, updatedBy }
+ */
+export async function getArticle (nodeId) {
+  return request(`/api/admin/articles/${nodeId}`, {
     method: 'GET'
   })
 }

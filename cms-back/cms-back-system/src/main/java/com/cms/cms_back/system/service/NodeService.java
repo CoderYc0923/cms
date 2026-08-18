@@ -5,7 +5,7 @@ import com.cms.cms_back.pojo.dto.node.UpdateNodeDTO;
 
 public interface NodeService {
 
-    void create(CreateNodeDTO dto);
+    void create(CreateNodeDTO dto, Long userId);
 
     void update(Long id, UpdateNodeDTO dto);
 

@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 
-/** 公开目录树（docs / 当前 Catalogue 拉树仍走 public） */
+/** 公开目录树（docs 只读） */
 export async function getDirectoryTree (slug) {
   return request(`/api/public/spaces/${slug}/tree`, {
     method: 'GET'

@@ -48,13 +48,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 /*
                  * 参数说明：
-                 * 1. principal: 认证主体，通常是用户ID
+                 * 1. principal: 认证主体，放入当前用户信息体
                  * 2. credentials: 凭证，通常为null，因为JWT不包含密码
                  * 3. authorities: 权限列表，这里使用硬编码的ROLE_ADMIN角色
                  */
-                var auth = new UsernamePasswordAuthenticationToken(userId, null, List.of(
+                var auth = new UsernamePasswordAuthenticationToken(new UserInfo(userId, username), null, List.of(
                         new SimpleGrantedAuthority("ROLE_ADMIN")));
-                
+
                 /* 设置认证详情，包括用户名 */
                 auth.setDetails(username);
                 /* 设置认证上下文，将认证信息保存到SecurityContext中 */

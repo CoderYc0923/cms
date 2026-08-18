@@ -17,7 +17,7 @@ public class CreateNodeDTO {
     private Long parentId;
 
     @NotNull(message = "节点类型不能为空")
-    private NodeType type;
+    private String type;
 
     @NotBlank(message = "标题不能为空")
     @Size(max = 25, message = "标题长度不能超过25个字符")

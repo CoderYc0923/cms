@@ -111,14 +111,10 @@ const handlePreview = () => {
 };
 
 watch(
-  () => props.content,
-  content => {
-    if (content) {
-      handleInit(content);
-    }
-    if (props.title) {
-      setTitle(props.title);
-    }
+  () => [props.content, props.title],
+  ([content, nextTitle]) => {
+    handleInit(content || "");
+    setTitle(nextTitle || "");
   },
   {
     immediate: true

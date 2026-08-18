@@ -1,8 +1,8 @@
 package com.cms.cms_back.admin.controllers.node;
 
-import java.util.Collections;
 import java.util.Map;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cms.cms_back.common.api.ApiResult;
+import com.cms.cms_back.framework.security.UserInfo;
 import com.cms.cms_back.pojo.dto.node.CreateNodeDTO;
 import com.cms.cms_back.pojo.dto.node.UpdateNodeDTO;
 import com.cms.cms_back.system.service.NodeService;
@@ -33,8 +34,8 @@ public class AdminNodeController {
     }
 
     @PostMapping
-    public ApiResult<Void> create(@Valid @RequestBody CreateNodeDTO body) {
-        nodeService.create(body);
+    public ApiResult<Void> create(@Valid @RequestBody CreateNodeDTO body, @AuthenticationPrincipal UserInfo user) {
+        nodeService.create(body, user.userId());
         return ApiResult.success();
     }
 

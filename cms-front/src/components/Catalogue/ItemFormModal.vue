@@ -16,7 +16,7 @@
       :rules="formRules"
     >
       <a-form-item label="标题" name="title">
-        <a-input v-model:value="form.title" placeholder="请输入标题,最多10个字符" />
+        <a-input v-model:value="form.title" placeholder="请输入标题,最多25个字符" />
       </a-form-item>
       <a-form-item label="类型" name="type">
         <a-radio-group v-model:value="form.type">
@@ -64,23 +64,32 @@ const [form, setForm] = useState({
 
 const [formRules, setFormRules] = useState({
   title: [
-    { required: true, message: "请输入名称" },
-    { max: 50, message: "名称不能超过50个字符" }
+    { required: true, message: "请输入标题" },
+    { max: 25, message: "标题不能超过25个字符" }
   ],
   type: [{ required: true, message: "请选择类型" }],
   sort: [{ required: true, message: "请输入排序" }]
 });
 
 watch(
-  () => props.row,
-  newVal => {
-    if (newVal && props.isEdit) {
-      setForm({
-        title: newVal.title,
-        type: newVal.type,
-        sort: newVal.sort
-      });
+  () => [props.visible, props.row, props.isEdit],
+  () => {
+    if (!props.visible) {
+      return;
     }
+    if (props.isEdit && props.row) {
+      setForm({
+        title: props.row.title,
+        type: props.row.type,
+        sort: props.row.sort ?? 0
+      });
+      return;
+    }
+    setForm({
+      title: "",
+      type: MENU_TYPE.MENU,
+      sort: 0
+    });
   },
   { immediate: true }
 );

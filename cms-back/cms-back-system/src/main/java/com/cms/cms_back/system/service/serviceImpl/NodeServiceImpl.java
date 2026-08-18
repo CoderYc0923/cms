@@ -1,10 +1,12 @@
 package com.cms.cms_back.system.service.serviceImpl;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cms.cms_back.common.exception.BizException;
 import com.cms.cms_back.common.exception.ErrorCode;
+import com.cms.cms_back.pojo.dto.article.CreateArticleDTO;
 import com.cms.cms_back.pojo.dto.node.CreateNodeDTO;
 import com.cms.cms_back.pojo.dto.node.UpdateNodeDTO;
 import com.cms.cms_back.pojo.entity.Node;
@@ -13,6 +15,7 @@ import com.cms.cms_back.pojo.enums.NodeStatus;
 import com.cms.cms_back.pojo.enums.NodeType;
 import com.cms.cms_back.system.mapper.NodeMapper;
 import com.cms.cms_back.system.mapper.SpaceMapper;
+import com.cms.cms_back.system.service.ArticleService;
 import com.cms.cms_back.system.service.NodeService;
 
 @Service
@@ -20,16 +23,19 @@ public class NodeServiceImpl implements NodeService {
 
     private final NodeMapper nodeMapper;
     private final SpaceMapper spaceMapper;
+    private final ArticleService articleService;
 
-    public NodeServiceImpl(NodeMapper nodeMapper, SpaceMapper spaceMapper) {
+    public NodeServiceImpl(NodeMapper nodeMapper, SpaceMapper spaceMapper, ArticleService articleService) {
         this.spaceMapper = spaceMapper;
         this.nodeMapper = nodeMapper;
+        this.articleService = articleService;
     }
 
     @Override
-    public void create(CreateNodeDTO dto) {
+    @Transactional(rollbackFor = Exception.class)
+    public void create(CreateNodeDTO dto, Long userId) {
         Node node = new Node();
-        node.setType(dto.getType());
+        node.setType(NodeType.fromCode(dto.getType()));
         node.setTitle(dto.getTitle());
 
         long spaceId = getSpaceSlugId(dto.getSlug());
@@ -55,8 +61,8 @@ public class NodeServiceImpl implements NodeService {
 
         nodeMapper.insert(node);
 
-        if (dto.getType() == NodeType.ARTICLE) {
-
+        if (NodeType.fromCode(dto.getType()) == NodeType.ARTICLE) {
+            createDraftArticle(node.getId(), userId);
         }
     }
 
@@ -66,6 +72,18 @@ public class NodeServiceImpl implements NodeService {
 
     @Override
     public void delete(Long id) {
+    }
+
+    /**
+     * 创建草稿文章
+     * @param nodeId
+     * @param userId
+     */
+    private void createDraftArticle(Long nodeId, Long userId) {
+        CreateArticleDTO articleDTO = new CreateArticleDTO();
+        articleDTO.setNodeId(nodeId);
+
+        articleService.create(articleDTO, userId);
     }
 
     /**

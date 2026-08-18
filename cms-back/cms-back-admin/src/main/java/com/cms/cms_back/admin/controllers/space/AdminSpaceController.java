@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cms.cms_back.common.api.ApiResult;
+import com.cms.cms_back.pojo.vo.space.SpaceNodeTreeVO;
+import com.cms.cms_back.system.service.SpaceService;
 
 /**
  * 管理端 Space API 骨架。
@@ -20,6 +22,12 @@ import com.cms.cms_back.common.api.ApiResult;
 @RestController
 @RequestMapping("/api/admin/spaces")
 public class AdminSpaceController {
+
+    private final SpaceService spaceService;
+
+    public AdminSpaceController(SpaceService spaceService) {
+        this.spaceService = spaceService;
+    }
 
     @GetMapping
     public ApiResult<List<Map<String, Object>>> list() {
@@ -38,7 +46,9 @@ public class AdminSpaceController {
 
     /** 完整目录树（含草稿），slug 对应前端原 source，如 shopchup / iot */
     @GetMapping("/{slug}/tree")
-    public ApiResult<List<Map<String, Object>>> tree(@PathVariable String slug) {
-        return ApiResult.success(Collections.emptyList());
+    public ApiResult<List<SpaceNodeTreeVO>> tree(@PathVariable String slug) {
+        List<SpaceNodeTreeVO> tree = spaceService.getTree(slug);
+
+        return ApiResult.success(tree);
     }
 }
