@@ -1,3 +1,8 @@
+# 生产：迁移走 CI/CD 或 mvn liquibase:update，应用启动不再自动跑
+spring:
+  liquibase:
+    enabled: false
+
 logging:
   level:
     root: INFO

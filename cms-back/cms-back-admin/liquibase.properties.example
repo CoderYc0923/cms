@@ -1,0 +1,6 @@
+# 复制为 liquibase.properties 后改密码（liquibase.properties 已 gitignore）
+# cp liquibase.properties.example liquibase.properties
+
+url=jdbc:mysql://127.0.0.1:3307/cms?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+username=cms
+password=change_me

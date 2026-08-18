@@ -6,9 +6,9 @@ databaseChangeLog:
       changes:
         - sqlFile:
             path: db/changelog/changes/001-init-schema.sql
-            relativeToChangelogFile: false
-            splitStatements: true
-            stripComments: true
+            relativeToChangelogFile: false # 相对于 changelog 文件的相对路径
+            splitStatements: true # 是否分割语句
+            stripComments: true # 是否去除注释
       rollback:
         - sql: DROP TABLE IF EXISTS publish_events;
         - sql: DROP TABLE IF EXISTS articles;
