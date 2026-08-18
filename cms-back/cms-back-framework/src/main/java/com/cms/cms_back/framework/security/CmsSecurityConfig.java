@@ -97,7 +97,7 @@ public class CmsSecurityConfig {
                         .authenticationEntryPoint(authEntryPoint) // 认证失败处理
                         .accessDeniedHandler(accessDeniedHandler) // 访问拒绝处理
                 )
-                .cors(Customizer.withDefaults()); // 使用默认的CORS配置
+                .cors(Customizer.withDefaults()); // 使用默认的CORS配置，找找名为 / 类型为 CorsConfigurationSource 的 Bean读取配置
 
         /* 添加过滤器，先执行traceIdFilter，再执行jwtAuthenticationFilter */
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

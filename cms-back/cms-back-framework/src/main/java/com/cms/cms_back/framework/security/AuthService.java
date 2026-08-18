@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cms.cms_back.common.exception.BizException;
 import com.cms.cms_back.pojo.entity.User;
+import com.cms.cms_back.pojo.enums.UserStatus;
 import com.cms.cms_back.pojo.vo.auth.TokenResponseVO;
 import com.cms.cms_back.system.mapper.UserMapper;
 
@@ -34,6 +35,7 @@ public class AuthService {
         User user = userMapper.selectOne(
             new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, username)
+                .eq(User::getStatus, UserStatus.ENABLED)
                 .last("limit 1")
         );
         if (user == null) {
