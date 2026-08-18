@@ -48,9 +48,8 @@ export default defineConfig(({ mode, command }) => {
       host: '0.0.0.0',
       proxy: { 
         '/api': {
-          target: 'http://localhost:3000', // dev
-          // target: 'http://172.16.10.50:7702', // qy
-          // target: 'http://172.25.174.92:3001/mock/150/', // yapi
+          target: 'http://localhost:8080', // cms-back-admin 默认端口
+          // target: 'http://localhost:3000', // 旧 mock
           ws: false,
           changeOrigin: true
         }

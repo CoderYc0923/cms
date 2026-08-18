@@ -1,16 +1,20 @@
 import request from '@/utils/request'
+
 /**
- * 上传接口-导入文件
- * @param {String} type 业务类型（用来区分文件路径）
- * @param {*} file 文件内容
- * @returns {Object} fileName：文件名，path：文件路径
+ * 上传接口
+ * @param {String} type 业务类型
+ * @param {*} file FormData 或文件内容
  */
-export async function importFile({ type, accountId }, file) {
-  return request(`/file/upload?businessType=${type}&accountId=${accountId}`, {
+export async function importFile ({ type, accountId }, file) {
+  const q = new URLSearchParams()
+  if (type) q.set('businessType', type)
+  if (accountId) q.set('accountId', accountId)
+  const qs = q.toString()
+  return request(`/api/admin/files/upload${qs ? `?${qs}` : ''}`, {
     headers: {
-      "Content-Type": "multipart/form-data",
+      'Content-Type': 'multipart/form-data'
     },
-    method: "POST",
-    params: file,
-  });
+    method: 'POST',
+    params: file
+  })
 }

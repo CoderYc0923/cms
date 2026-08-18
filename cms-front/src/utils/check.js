@@ -27,15 +27,16 @@ export function checkStatus(response) {
     })
     return
   }
-  if (response.code >= 200 && response.code < 300) {
+  const status = response.status ?? response.code
+  if (status >= 200 && status < 300) {
     return response
   }
-  const errortext = statusMessage[response.code] || response.statusText
+  const errortext = statusMessage[status] || response.statusText
   notification.error({
-    message: `请求错误 ${response.code}`,
+    message: `请求错误 ${status}`,
     description: errortext
   })
-  if (ERROR_CODE_TO_LOGIN.includes(response.code)) {
+  if (ERROR_CODE_TO_LOGIN.includes(status)) {
     useUserStore().resetAuth()
   }
 }

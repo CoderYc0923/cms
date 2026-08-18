@@ -1,31 +1,48 @@
 /*
- * 获取cookie中的唯一标志
- * */
+ * Token 存储（access + refresh）
+ */
 
 import Cookies from 'js-cookie'
-const __TOKEN_STORAGE_KEY__ = 'BACK_USERID'
-const __SESSION_STORAGE_KEY__ = 'session_id'
+
+const ACCESS_TOKEN_KEY = 'CMS_ACCESS_TOKEN'
+const REFRESH_TOKEN_KEY = 'CMS_REFRESH_TOKEN'
+/** 兼容旧 cookie 名，清登录态时一并删掉 */
+const LEGACY_TOKEN_KEY = 'BACK_USERID'
+const SESSION_STORAGE_KEY = 'session_id'
 
 export function getToken () {
-  return Cookies.get(__TOKEN_STORAGE_KEY__)
+  return Cookies.get(ACCESS_TOKEN_KEY) || Cookies.get(LEGACY_TOKEN_KEY)
 }
 
 export function setToken (token) {
-  Cookies.set(__TOKEN_STORAGE_KEY__, token)
+  Cookies.set(ACCESS_TOKEN_KEY, token)
 }
 
 export function clearToken () {
-  Cookies.remove(__TOKEN_STORAGE_KEY__)
+  Cookies.remove(ACCESS_TOKEN_KEY)
+  Cookies.remove(LEGACY_TOKEN_KEY)
+}
+
+export function getRefreshToken () {
+  return Cookies.get(REFRESH_TOKEN_KEY)
+}
+
+export function setRefreshToken (token) {
+  Cookies.set(REFRESH_TOKEN_KEY, token)
+}
+
+export function clearRefreshToken () {
+  Cookies.remove(REFRESH_TOKEN_KEY)
 }
 
 export function getSession () {
-  return Cookies.get(__SESSION_STORAGE_KEY__)
+  return Cookies.get(SESSION_STORAGE_KEY)
 }
 
 export function setSession (session) {
-  Cookies.set(__SESSION_STORAGE_KEY__, session)
+  Cookies.set(SESSION_STORAGE_KEY, session)
 }
 
 export function clearSession () {
-  Cookies.remove(__SESSION_STORAGE_KEY__)
+  Cookies.remove(SESSION_STORAGE_KEY)
 }

@@ -256,7 +256,7 @@ const handleItemFormOk = async form => {
       parentId: currentItem.value.id
     }
     const res = isAddItemEdit.value ?  await editItem(params, currentItem.value.id) : await createItem(params)
-    if (!res.code) {
+    if (res.code === 0 || res.code === 200) {
       message.success(`${isAddItemEdit.value ? "新增" : "编辑"}条目成功`);
       getTree();
       setAddItemModalVisible(false);
@@ -285,7 +285,7 @@ const handleDeleteGroup = item => {
     async onOk() {
       try {
         const res = await deleteGroup(item.id);
-        if (!res.code) {
+        if (res.code === 0 || res.code === 200) {
           message.success("删除分组成功");
           getTree();
         }
@@ -303,7 +303,7 @@ const handleGroupFormOk = async form => {
       source: source.value
     }
     const res = isGroupEdit.value ? await editGroup(params, currentItem.value.id) : await addGroup(params);
-    if (!res.code) {
+    if (res.code === 0 || res.code === 200) {
       message.success(`${isGroupEdit.value ? "编辑" : "新增"}分组成功`);
       getTree(source);
       setGroupFormModalVisible(false);
@@ -316,8 +316,8 @@ const handleGroupFormOk = async form => {
 const getTree = async () => {
   try {
     const res = await getDirectoryTree(source.value);
-    if (res.code === 0) {
-      const data = res.data.map(item => ({
+    if (res.code === 0 || res.code === 200) {
+      const data = (res.data || []).map(item => ({
         ...item,
         type: MENU_TYPE.GROUP
       }));

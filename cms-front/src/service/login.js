@@ -1,17 +1,28 @@
 import request from '@/utils/request'
 
-// 获取公钥
-export async function getPublicKey () {
-  return request('/api/auth/public-key', {
-    method: 'GET'
+/** 登录：明文 username / password → /api/admin/auth/login */
+export async function login (params) {
+  return request('/api/admin/auth/login', {
+    method: 'POST',
+    params,
+    showDefaultErrMsg: false,
+    isShowNoise: false
   })
 }
 
-// 登录
-export async function login (params) {
-  return request('/api/auth/login', {
+export async function refresh (refreshToken) {
+  return request('/api/admin/auth/refresh', {
     method: 'POST',
-    params,
+    params: { refreshToken },
+    showDefaultErrMsg: false,
+    isShowNoise: false
+  })
+}
+
+export async function logout (refreshToken) {
+  return request('/api/admin/auth/logout', {
+    method: 'POST',
+    params: { refreshToken },
     showDefaultErrMsg: false,
     isShowNoise: false
   })

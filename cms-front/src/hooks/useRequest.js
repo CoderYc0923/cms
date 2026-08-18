@@ -17,7 +17,7 @@ const useRequest = async (requestFunc, params, ...args) => {
   })
   try {
     const res = await requestFunc(params, ...args)
-    if (!res.code) {
+    if (res.code === 0 || res.code === 200) {
       requestSuccFunc && requestSuccFunc()
       return {
         data: res.data,

@@ -14,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.cms.cms_back.framework.web.AccessLogFilter;
 import com.cms.cms_back.framework.web.TraceIdFilter;
 
 import jakarta.servlet.Filter;
@@ -40,13 +41,16 @@ public class CmsSecurityConfig {
     private final RestAccessDeniedHandler accessDeniedHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final TraceIdFilter traceIdFilter;
+    private final AccessLogFilter accessLogFilter;
 
     public CmsSecurityConfig(RestAuthEntryPoint authEntryPoint, RestAccessDeniedHandler accessDeniedHandler,
-            JwtAuthenticationFilter jwtAuthenticationFilter, TraceIdFilter traceIdFilter) {
+            JwtAuthenticationFilter jwtAuthenticationFilter, TraceIdFilter traceIdFilter,
+            AccessLogFilter accessLogFilter) {
         this.authEntryPoint = authEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.traceIdFilter = traceIdFilter;
+        this.accessLogFilter = accessLogFilter;
     }
 
     /**
@@ -74,6 +78,19 @@ public class CmsSecurityConfig {
         registration.setEnabled(false);
         return registration;
     }
+    
+    /**
+     * 关掉accessLogFilter的Servlet自动注册，防止重复注册
+     * 
+     * @param filter
+     * @return
+     */
+    @Bean
+    public FilterRegistrationBean<Filter> disableAccessLogFilterRegistration(AccessLogFilter filter) {
+        FilterRegistrationBean<Filter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
 
     /**
      * 添加安全过滤器链
@@ -97,11 +114,12 @@ public class CmsSecurityConfig {
                         .authenticationEntryPoint(authEntryPoint) // 认证失败处理
                         .accessDeniedHandler(accessDeniedHandler) // 访问拒绝处理
                 )
-                .cors(Customizer.withDefaults()); // 使用默认的CORS配置，找找名为 / 类型为 CorsConfigurationSource 的 Bean读取配置
+                .cors(Customizer.withDefaults()); // 读取 CorsConfigurationSource Bean
 
-        /* 添加过滤器，先执行traceIdFilter，再执行jwtAuthenticationFilter */
+        /* TraceId → AccessLog → JWT：都挂在 JWT 前面，后 add 的更靠近 JWT */
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(traceIdFilter, JwtAuthenticationFilter.class);
+        http.addFilterBefore(accessLogFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
