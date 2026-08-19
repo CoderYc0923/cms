@@ -1,7 +1,7 @@
 <template>
   <div class="catalogue">
     <div class="catalogue_content">
-      <div class="catalogue_tool">
+      <div class="catalogue_tool" v-if="!readonly">
         <a-button
           size="small"
           @click="handleChangeMode"
@@ -39,7 +39,7 @@
                     :item="firstItem"
                     @add="handleAddItem(firstItem)"
                     @edit="handleEditGroup(firstItem)"
-                    @delete="handleDeleteGroup(firstItem)"
+                    @delete="handleDeleteNode"
                     @view="() => {}"
                   />
                 </div>
@@ -57,7 +57,7 @@
                             :item="secondItem"
                             @add="handleAddItem(secondItem)"
                             @edit="handleEditItem(secondItem, firstItem)"
-                            @delete="() => {}"
+                            @delete="handleDeleteNode"
                             @view="() => {}"
                           />
                         </div>
@@ -71,7 +71,7 @@
                               :item="thirdItem"
                               @add="handleAddItem(thirdItem)"
                               @edit="handleEditItem(thirdItem, secondItem)"
-                              @delete="() => {}"
+                              @delete="handleDeleteNode"
                               @view="() => {}"
                             />
                           </div>
@@ -89,7 +89,7 @@
                           :item="secondItem"
                           @add="handleAddItem(secondItem)"
                           @edit="handleEditItem(secondItem, firstItem)"
-                          @delete="() => {}"
+                          @delete="handleDeleteNode"
                           @view="() => {}"
                         />
                       </div>
@@ -110,7 +110,7 @@
                     :item="firstItem"
                     @add="handleAddItem(firstItem)"
                     @edit="handleEditItem(firstItem)"
-                    @delete="() => {}"
+                    @delete="handleDeleteNode"
                     @view="() => {}"
                   />
                 </div>
@@ -125,7 +125,7 @@
                       :item="secondItem"
                       @add="handleAddItem(secondItem)"
                       @edit="handleEditItem(secondItem, firstItem)"
-                      @delete="() => {}"
+                      @delete="handleDeleteNode"
                       @view="() => {}"
                     />
                   </div>
@@ -143,7 +143,7 @@
                   :item="firstItem"
                   @add="handleAddItem(firstItem)"
                   @edit="handleEditItem(firstItem)"
-                  @delete="() => {}"
+                      @delete="handleDeleteNode"
                   @view="() => {}"
                 />
               </div>
@@ -153,12 +153,14 @@
       </a-menu>
     </div>
     <GroupFormModal
+      v-if="!readonly"
       v-model:visible="groupFormModalVisible"
       :isEdit="isGroupEdit"
       :row="currentGroup"
       @ok="handleGroupFormOk"
     />
     <ItemFormModal
+      v-if="!readonly"
       v-model:visible="addItemModalVisible"
       :isEdit="isAddItemEdit"
       :row="currentItem"
@@ -168,7 +170,7 @@
 </template>
 
 <script setup>
-import { MENU_TYPE, CATALOGUE_MODE } from "@/consts/enum";
+import { MENU_TYPE, MENU_TYPE_MSG, CATALOGUE_MODE } from "@/consts/enum";
 import { findItemByAttr } from "@/utils/util";
 import MenuItemActions from "./MenuItemActions.vue";
 import GroupFormModal from "./GroupFormModal.vue";
@@ -177,8 +179,20 @@ import { RetweetOutlined } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import { addGroup, editGroup, deleteGroup, getGroupList } from "@/service/group";
 import { createItem, editItem } from "@/service/items";
+import { getPublicTree } from "@/shared/api/public";
 import { useRouter } from "vue-router";
 import { useGlobalStore } from "@/stores/global";
+
+const props = defineProps({
+  readonly: {
+    type: Boolean,
+    default: false
+  },
+  spaceSlug: {
+    type: String,
+    default: ""
+  }
+});
 
 const global = useGlobalStore();
 const router = useRouter();
@@ -198,9 +212,9 @@ const [isAddItemEdit, setIsAddItemEdit] = useState(false);
 
 const [source, setSource] = useState(null);
 
-const isEdit = computed(() => mode.value === CATALOGUE_MODE.EDIT);
+const isEdit = computed(() => !props.readonly && mode.value === CATALOGUE_MODE.EDIT);
 
-const emit = defineEmits(["articleClick"]);
+const emit = defineEmits(["articleClick", "nodeDeleted"]);
 
 const buildNodePayload = (form, extra = {}) => {
   const params = {
@@ -284,19 +298,39 @@ const handleEditGroup = item => {
   setGroupFormModalVisible(true);
 };
 
-const handleDeleteGroup = item => {
+const hasChildren = item =>
+  Array.isArray(item?.children) && item.children.length > 0;
+
+const handleDeleteNode = item => {
+  const typeLabel = MENU_TYPE_MSG[item.type] || "节点";
+
+  if (
+    (item.type === MENU_TYPE.GROUP || item.type === MENU_TYPE.MENU) &&
+    hasChildren(item)
+  ) {
+    message.warning(`${typeLabel}下存在子节点，请先删除子节点`);
+    return;
+  }
+
   global.modal.confirm({
     title: "删除",
-    content: `确定要删除分组“${item.title}”吗？`,
+    content: `确定要删除${typeLabel}「${item.title}」吗？此操作不可恢复。`,
+    okText: "删除",
+    okType: "danger",
+    cancelText: "取消",
     async onOk() {
       try {
         const res = await deleteGroup(item.id);
         if (res.code === 0 || res.code === 200) {
-          message.success("删除分组成功");
+          message.success(`删除${typeLabel}成功`);
+          if (selectedKeys.value.includes(String(item.id))) {
+            setSelectedKeys([]);
+          }
+          emit("nodeDeleted", { nodeId: item.id, type: item.type });
           getTree();
         }
       } catch (error) {
-        message.error(error.message);
+        message.error(error.message || "删除失败");
       }
     }
   });
@@ -327,7 +361,8 @@ const getTree = async slug => {
     return;
   }
   try {
-    const res = await getGroupList(spaceSlug);
+    const fetchTree = props.readonly ? getPublicTree : getGroupList;
+    const res = await fetchTree(spaceSlug);
     if (res.code === 0 || res.code === 200) {
       setList(res.data || []);
     }
@@ -336,10 +371,17 @@ const getTree = async slug => {
   }
 };
 
+const resolveSpaceSlug = () => {
+  if (props.spaceSlug) {
+    return props.spaceSlug;
+  }
+  return router.currentRoute.value.path.split("/").pop();
+};
+
 watch(
-  () => router.currentRoute.value.path,
+  () => (props.readonly ? props.spaceSlug : router.currentRoute.value.path),
   () => {
-    const s = router.currentRoute.value.path.split("/").pop();
+    const s = resolveSpaceSlug();
     if (s) {
       setSource(s);
       getTree(s);
@@ -352,16 +394,29 @@ watch(
 <style scoped lang="less">
 .catalogue {
   display: flex;
-  flex-direction: row-reverse;
+  flex-direction: column;
   height: 100%;
-  padding-top: 24px;
-  &_menu {
-    width: 240px;
+  padding: 16px 0 16px 16px;
+  box-sizing: border-box;
+
+  &_content {
+    display: flex;
+    flex-direction: column;
     height: 100%;
-    overflow-y: auto;
+    min-height: 0;
   }
+
   &_tool {
-    margin: 0 0 6px 24px;
+    flex-shrink: 0;
+    margin: 0 16px 12px 0;
+  }
+
+  &_menu {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    border-inline-end: none !important;
   }
 
   .menu-item-content {
@@ -369,6 +424,7 @@ watch(
     align-items: center;
     justify-content: space-between;
     width: 100%;
+    gap: 8px;
   }
 }
 </style>

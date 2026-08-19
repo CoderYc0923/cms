@@ -1,7 +1,7 @@
 <template>
   <div class="flex-box-row" style="height: 100%">
     <div class="flex-25">
-      <Catalogue @articleClick="handleArticleClick" />
+      <Catalogue @articleClick="handleArticleClick" @nodeDeleted="handleNodeDeleted" />
     </div>
     <div class="flex-75">
       <!--  <Article /> -->
@@ -80,6 +80,7 @@ const [activeMenu, setActiveMenu] = useState(null);
 const [content, setContent] = useState("");
 const [title, setTitle] = useState("");
 const [hasArticle, setHasArticle] = useState(false);
+const [currentNodeId, setCurrentNodeId] = useState(null);
 
 const global = useGlobalStore();
 
@@ -112,11 +113,22 @@ const handleGetArticle = async node => {
     const res = await getArticle(node.nodeId);
     if (res.code === 0 || res.code === 200) {
       const data = res.data || {};
+      setCurrentNodeId(node.nodeId);
       setTitle(node.title || "");
       setContent(data.content || "");
       setHasArticle(true);
     }
   } catch (error) {
+    setCurrentNodeId(null);
+    setHasArticle(false);
+    setTitle("");
+    setContent("");
+  }
+};
+
+const handleNodeDeleted = ({ nodeId, type }) => {
+  if (type === MENU_TYPE.ARTICLE && currentNodeId.value === nodeId) {
+    setCurrentNodeId(null);
     setHasArticle(false);
     setTitle("");
     setContent("");

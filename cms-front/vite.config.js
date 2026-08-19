@@ -3,14 +3,43 @@ import vue from '@vitejs/plugin-vue'
 import path from 'path'
 import AutoImport from 'unplugin-auto-import/vite'
 
+const resolveEntryHtml = (appTarget) =>
+  appTarget === 'docs'
+    ? path.resolve(__dirname, 'docs.html')
+    : path.resolve(__dirname, 'index.html')
 
+const resolveOutDir = (appTarget, docsSpace) => {
+  if (appTarget === 'docs') {
+    return `dist/docs-${docsSpace || 'unknown'}`
+  }
+  return 'dist/admin'
+}
+
+const mpaDevFallbackPlugin = (appTarget) => ({
+  name: 'mpa-dev-fallback',
+  configureServer (server) {
+    server.middlewares.use((req, _res, next) => {
+      const url = req.url?.split('?')[0] ?? ''
+      if (appTarget === 'docs' && (url === '/' || url === '/index.html')) {
+        req.url = '/docs.html'
+      }
+      next()
+    })
+  }
+})
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const appTarget = env.VITE_APP_TARGET || 'admin'
+  const docsSpace = env.VITE_DOCS_SPACE || 'unknown'
+  const entryHtml = resolveEntryHtml(appTarget)
+  const isDev = command === 'serve'
+
   return {
     plugins: [
       vue(),
+      isDev && mpaDevFallbackPlugin(appTarget),
       AutoImport({
         include: [/\.vue$/, /\.vue\?vue/, /\.js$/],
         imports: ['vue', 'vue-router', 'pinia'],
@@ -22,10 +51,9 @@ export default defineConfig(({ mode, command }) => {
         dts: './auto-imports.d.ts',
         dirs: ['./src/hooks', './src/stores']
       })
-    ],
+    ].filter(Boolean),
     resolve: {
       alias: {
-        // eslint-disable-next-line no-undef
         '@': path.resolve(__dirname, './src')
       }
     },
@@ -34,9 +62,10 @@ export default defineConfig(({ mode, command }) => {
     },
     build: {
       sourcemap: command === 'build' ? false : 'inline',
-      outDir: 'dist', //指定输出目录
-      // 将js、css文件分离到单独文件夹
+      outDir: resolveOutDir(appTarget, docsSpace),
+      emptyOutDir: true,
       rollupOptions: {
+        input: entryHtml,
         output: {
           chunkFileNames: 'static/js/[name]-[hash].js',
           entryFileNames: 'static/js/[name]-[hash].js',
@@ -46,10 +75,10 @@ export default defineConfig(({ mode, command }) => {
     },
     server: {
       host: '0.0.0.0',
-      proxy: { 
+      open: isDev ? (appTarget === 'docs' ? '/docs.html' : '/') : false,
+      proxy: {
         '/api': {
-          target: 'http://localhost:8080', // cms-back-admin 默认端口
-          // target: 'http://localhost:3000', // 旧 mock
+          target: 'http://localhost:8080',
           ws: false,
           changeOrigin: true
         }

@@ -18,7 +18,7 @@
       />
     </div>
     <div class="preview-sidebar">
-      <div class="preview-sidebar-tools">
+      <div class="preview-sidebar-tools" v-if="!readonly">
         <template v-if="status === ACTION_STATUS.SAVE">
           <a-button type="primary" @click="handleEdit">编辑</a-button>
         </template>
@@ -52,6 +52,10 @@ const props = defineProps({
   title: {
     type: String,
     default: ""
+  },
+  readonly: {
+    type: Boolean,
+    default: false
   }
 });
 

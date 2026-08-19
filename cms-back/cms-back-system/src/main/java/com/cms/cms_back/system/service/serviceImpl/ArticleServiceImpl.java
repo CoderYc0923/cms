@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import com.cms.cms_back.system.mapper.ArticleMapper;
 import com.cms.cms_back.system.mapper.NodeMapper;
+import com.cms.cms_back.system.mapper.SpaceMapper;
 import com.cms.cms_back.system.service.ArticleService;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -15,6 +16,7 @@ import com.cms.cms_back.common.exception.ErrorCode;
 import com.cms.cms_back.pojo.dto.article.CreateArticleDTO;
 import com.cms.cms_back.pojo.entity.Article;
 import com.cms.cms_back.pojo.entity.Node;
+import com.cms.cms_back.pojo.entity.Space;
 import com.cms.cms_back.pojo.enums.PublishStatus;
 import com.cms.cms_back.pojo.vo.article.GetArticleVO;
 
@@ -23,10 +25,12 @@ public class ArticleServiceImpl implements ArticleService {
 
     private final ArticleMapper articleMapper;
     private final NodeMapper nodeMapper;
+    private final SpaceMapper spaceMapper;
 
-    public ArticleServiceImpl(ArticleMapper articleMapper, NodeMapper nodeMapper) {
+    public ArticleServiceImpl(ArticleMapper articleMapper, NodeMapper nodeMapper, SpaceMapper spaceMapper) {
         this.articleMapper = articleMapper;
         this.nodeMapper = nodeMapper;
+        this.spaceMapper = spaceMapper;
     }
 
     @Override
@@ -36,6 +40,29 @@ public class ArticleServiceImpl implements ArticleService {
         }
 
         Article article = getArticleByNodeId(nodeId);
+
+        return toVO(article);
+    }
+
+    @Override
+    public GetArticleVO getPublicArticle(String slug, Long nodeId) {
+        if (nodeId == null || nodeId <= 0) {
+            throw new BizException(ErrorCode.NOT_FOUND, "文章不存在");
+        }
+
+        Space space = spaceMapper.selectOne(
+                new LambdaQueryWrapper<Space>()
+                        .eq(Space::getSlug, slug));
+        if (space == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "文章不存在");
+        }
+
+        Article article = getArticleByNodeId(nodeId);
+        if (article == null
+                || !space.getId().equals(article.getSpaceId())
+                || article.getPublishStatus() != PublishStatus.PUBLISHED) {
+            throw new BizException(ErrorCode.NOT_FOUND, "文章不存在");
+        }
 
         return toVO(article);
     }

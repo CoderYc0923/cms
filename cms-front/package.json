@@ -1,13 +1,20 @@
 {
-  "name": "vite-project",
+  "name": "cms-front",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --mode development",
-    "prod": "vite --mode production",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "pnpm dev:admin",
+    "dev:admin": "vite --mode admin --port 5173",
+    "dev:docs:iot": "vite --mode docs.iot --port 5174",
+    "dev:docs:shopchup": "vite --mode docs.shopchup --port 5175",
+    "build": "pnpm build:admin",
+    "build:admin": "vite build --mode admin",
+    "build:docs:iot": "vite build --mode docs.iot",
+    "build:docs:shopchup": "vite build --mode docs.shopchup",
+    "preview:admin": "vite preview --outDir dist/admin --port 5173",
+    "preview:docs:iot": "vite preview --outDir dist/docs-iot --port 5174",
+    "preview:docs:shopchup": "vite preview --outDir dist/docs-shopchup --port 5175"
   },
   "dependencies": {
     "@ant-design-vue/pro-layout": "^3.2.4",

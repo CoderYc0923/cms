@@ -29,7 +29,7 @@ defineProps({
   align-items: center;
   justify-content: flex-end;
   flex-wrap: nowrap;
-  height:66px;
-  padding-right: 24px
+  height: auto;
+  padding-right: 0;
 }
 </style>

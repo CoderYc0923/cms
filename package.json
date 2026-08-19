@@ -1,0 +1,12 @@
+{
+  "name": "cms",
+  "private": true,
+  "scripts": {
+    "dev:admin": "pnpm --dir cms-front dev:admin",
+    "dev:docs:iot": "pnpm --dir cms-front dev:docs:iot",
+    "dev:docs:shopchup": "pnpm --dir cms-front dev:docs:shopchup",
+    "build:admin": "pnpm --dir cms-front build:admin",
+    "build:docs:iot": "pnpm --dir cms-front build:docs:iot",
+    "build:docs:shopchup": "pnpm --dir cms-front build:docs:shopchup"
+  }
+}
