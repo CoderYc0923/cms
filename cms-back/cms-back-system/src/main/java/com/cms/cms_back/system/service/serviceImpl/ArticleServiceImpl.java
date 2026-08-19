@@ -1,5 +1,7 @@
 package com.cms.cms_back.system.service.serviceImpl;
 
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
 
 import com.cms.cms_back.system.mapper.ArticleMapper;
@@ -7,6 +9,7 @@ import com.cms.cms_back.system.mapper.NodeMapper;
 import com.cms.cms_back.system.service.ArticleService;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.cms.cms_back.common.exception.BizException;
 import com.cms.cms_back.common.exception.ErrorCode;
 import com.cms.cms_back.pojo.dto.article.CreateArticleDTO;
@@ -59,6 +62,27 @@ public class ArticleServiceImpl implements ArticleService {
         articleMapper.insert(article);
     }
 
+    @Override
+    public void delete(Long nodeId) {
+        if (nodeId == null || nodeId <= 0) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "文章节点ID不能为空");
+        }
+
+        Article article = getArticleByNodeId(nodeId);
+        if (article == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "文章不存在");
+        }
+
+        if (article.getPublishStatus() == PublishStatus.PUBLISHED) {
+            throw new BizException(ErrorCode.CONFLICT, "已发布文章不能删除");
+        }
+
+        articleMapper.update(null, new LambdaUpdateWrapper<Article>()
+            .eq(Article::getNodeId, nodeId)
+            .set(Article::getDeletedAt, LocalDateTime.now())
+        );
+    }
+
     private GetArticleVO toVO(Article article) {
         if (article == null) {
             return null;
@@ -93,7 +117,11 @@ public class ArticleServiceImpl implements ArticleService {
      * @param nodeId
      * @return
      */
-    private Article getArticleByNodeId(Long nodeId) {
+    @Override
+    public Article getArticleByNodeId(Long nodeId) {
+        if (nodeId == null || nodeId <= 0) {
+            return null;
+        }
         return articleMapper.selectOne(
                 new LambdaQueryWrapper<Article>()
                         .eq(Article::getNodeId, nodeId)

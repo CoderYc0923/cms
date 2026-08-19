@@ -1,14 +1,18 @@
 package com.cms.cms_back.system.service.serviceImpl;
 
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.cms.cms_back.common.exception.BizException;
 import com.cms.cms_back.common.exception.ErrorCode;
 import com.cms.cms_back.pojo.dto.article.CreateArticleDTO;
 import com.cms.cms_back.pojo.dto.node.CreateNodeDTO;
 import com.cms.cms_back.pojo.dto.node.UpdateNodeDTO;
+import com.cms.cms_back.pojo.entity.Article;
 import com.cms.cms_back.pojo.entity.Node;
 import com.cms.cms_back.pojo.entity.Space;
 import com.cms.cms_back.pojo.enums.NodeStatus;
@@ -68,10 +72,68 @@ public class NodeServiceImpl implements NodeService {
 
     @Override
     public void update(Long id, UpdateNodeDTO dto) {
+        Node node = getNodeById(id);
+        if (node == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "节点不存在");
+        }
+
+        if (dto.getSort() == null || dto.getSort() < 0) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "排序不能为空");
+        }
+
+        LambdaUpdateWrapper<Node> updateWrapper = new LambdaUpdateWrapper<>();
+
+        updateWrapper
+            .eq(Node::getId, id)
+            .isNull(Node::getDeletedAt)
+            .set(Node::getTitle, dto.getTitle())
+            .set(Node::getSort, dto.getSort());
+
+
+        nodeMapper.update(null, updateWrapper);
     }
 
+    /**
+     * 删除节点（软删除）
+     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
+        Node node = getNodeById(id);
+        if (node == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "节点不存在");
+        }
+
+        if (node.getType() == NodeType.GROUP || node.getType() == NodeType.MENU) {
+
+            long count = nodeMapper.selectCount(
+                new LambdaQueryWrapper<Node>()
+                    .eq(Node::getParentId, id)
+                    .isNull(Node::getDeletedAt)
+            );
+
+            if (count > 0) {
+                throw new BizException(ErrorCode.CONFLICT, "节点下有子节点，不能删除");
+            }
+        }
+
+        if (node.getType() == NodeType.ARTICLE) {
+            deleteArticleByNodeId(node.getId());
+        }
+
+        nodeMapper.update(null, new LambdaUpdateWrapper<Node>()
+            .eq(Node::getId, id)
+            .isNull(Node::getDeletedAt)
+            .set(Node::getDeletedAt, LocalDateTime.now())
+        );
+    }
+    
+    /**
+     * 删除文章
+     * @param nodeId
+     */
+    private void deleteArticleByNodeId(Long nodeId) {
+        articleService.delete(nodeId);
     }
 
     /**
@@ -93,6 +155,9 @@ public class NodeServiceImpl implements NodeService {
      * @return
      */
     private Node getNodeById(Long id) {
+        if (id == null || id <= 0) {
+            return null;
+        }
         return nodeMapper.selectOne(
                 new LambdaQueryWrapper<Node>()
                         .eq(Node::getId, id)
