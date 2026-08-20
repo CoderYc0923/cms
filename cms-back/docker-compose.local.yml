@@ -1,0 +1,15 @@
+# 用法：
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# 注意：不要在此文件再声明 ports（会与 base 叠加导致同端口绑两次）。
+# brokerIP1 写在 deploy/rocketmq/broker-local.conf（host.docker.internal）。
+
+services:
+  rocketmq-namesrv:
+    environment:
+      JAVA_OPT_EXT: ${ROCKETMQ_NAMESRV_JAVA_OPT:--Xms512m -Xmx512m}
+
+  rocketmq-broker:
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+      JAVA_OPT_EXT: ${ROCKETMQ_BROKER_JAVA_OPT:--Xms512m -Xmx512m}

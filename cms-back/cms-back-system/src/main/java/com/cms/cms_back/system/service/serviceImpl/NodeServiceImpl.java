@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.cms.cms_back.common.exception.BizException;
 import com.cms.cms_back.common.exception.ErrorCode;
 import com.cms.cms_back.pojo.dto.article.CreateArticleDTO;
+import com.cms.cms_back.pojo.dto.mq.ArticleNodeMessage;
 import com.cms.cms_back.pojo.dto.node.CreateNodeDTO;
 import com.cms.cms_back.pojo.dto.node.UpdateNodeDTO;
 import com.cms.cms_back.pojo.entity.Article;
@@ -19,6 +20,7 @@ import com.cms.cms_back.pojo.enums.NodeStatus;
 import com.cms.cms_back.pojo.enums.NodeType;
 import com.cms.cms_back.system.mapper.NodeMapper;
 import com.cms.cms_back.system.mapper.SpaceMapper;
+import com.cms.cms_back.system.mq.producers.CreateArticleNodeProducer;
 import com.cms.cms_back.system.service.ArticleService;
 import com.cms.cms_back.system.service.NodeService;
 
@@ -28,15 +30,16 @@ public class NodeServiceImpl implements NodeService {
     private final NodeMapper nodeMapper;
     private final SpaceMapper spaceMapper;
     private final ArticleService articleService;
+    private final CreateArticleNodeProducer createArticleNodeProducer;
 
-    public NodeServiceImpl(NodeMapper nodeMapper, SpaceMapper spaceMapper, ArticleService articleService) {
+    public NodeServiceImpl(NodeMapper nodeMapper, SpaceMapper spaceMapper, ArticleService articleService, CreateArticleNodeProducer createArticleNodeProducer) {
         this.spaceMapper = spaceMapper;
         this.nodeMapper = nodeMapper;
         this.articleService = articleService;
+        this.createArticleNodeProducer = createArticleNodeProducer;
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void create(CreateNodeDTO dto, Long userId) {
         Node node = new Node();
         node.setType(NodeType.fromCode(dto.getType()));
@@ -65,8 +68,15 @@ public class NodeServiceImpl implements NodeService {
 
         nodeMapper.insert(node);
 
+
+
         if (NodeType.fromCode(dto.getType()) == NodeType.ARTICLE) {
-            createDraftArticle(node.getId(), userId);
+            ArticleNodeMessage message = new ArticleNodeMessage();
+            message.setUserId(userId);
+            message.setNodeId(node.getId());
+            message.setTitle(node.getTitle());
+
+            createArticleNodeProducer.publish(message);
         }
     }
 
@@ -134,18 +144,6 @@ public class NodeServiceImpl implements NodeService {
      */
     private void deleteArticleByNodeId(Long nodeId) {
         articleService.delete(nodeId);
-    }
-
-    /**
-     * 创建草稿文章
-     * @param nodeId
-     * @param userId
-     */
-    private void createDraftArticle(Long nodeId, Long userId) {
-        CreateArticleDTO articleDTO = new CreateArticleDTO();
-        articleDTO.setNodeId(nodeId);
-
-        articleService.create(articleDTO, userId);
     }
 
     /**

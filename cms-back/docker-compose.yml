@@ -37,7 +37,7 @@ services:
       retries: 10
 
   rocketmq-namesrv:
-    image: apache/rocketmq:${ROCKETMQ_IMAGE_TAG:-5.1.4}
+    image: apache/rocketmq:${ROCKETMQ_IMAGE_TAG:-5.3.1}
     container_name: cms-rocketmq-namesrv
     restart: unless-stopped
     ports:
@@ -51,18 +51,31 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
-  
+
+  # Official image runs as uid 3000; Docker Desktop named volumes are often root-owned.
+  rocketmq-init:
+    image: busybox:1.36
+    container_name: cms-rocketmq-init
+    user: "0"
+    volumes:
+      - cms-back-rocketmq-store:/store
+      - cms-back-rocketmq-logs:/logs
+    command: ["sh", "-c", "chown -R 3000:3000 /store /logs"]
+    restart: "no"
+
   rocketmq-broker:
-    image: apache/rocketmq:${ROCKETMQ_IMAGE_TAG:-5.1.4}
+    image: apache/rocketmq:${ROCKETMQ_IMAGE_TAG:-5.3.1}
     container_name: cms-rocketmq-broker
     restart: unless-stopped
     depends_on:
       rocketmq-namesrv:
         condition: service_started
+      rocketmq-init:
+        condition: service_completed_successfully
     ports:
-      - "${ROCKETMQ_BROKER_PORT: -10911}:10911" # 主节点端口
-      - "${ROCKETMQ_BROKER_HA_PORT: -10912}:10912" # 主节点HA端口
-      - "${ROCKETMQ_BROKER_VIP_PORT: -10909}:10909" # 主节点VIP端口
+      - "${ROCKETMQ_BROKER_PORT:-10911}:10911" # 主节点端口
+      - "${ROCKETMQ_BROKER_HA_PORT:-10912}:10912" # 主节点HA端口
+      - "${ROCKETMQ_BROKER_VIP_PORT:-10909}:10909" # 主节点VIP端口
     environment:
       NAMESRV_ADDR: rocketmq-namesrv:9876
       JAVA_OPT_EXT: ${ROCKETMQ_BROKER_JAVA_OPT:--Xms512m -Xmx512m}

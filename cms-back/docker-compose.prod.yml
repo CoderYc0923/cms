@@ -1,26 +1,28 @@
 # 用法：
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# ports 使用 !override，避免与 base 叠加导致同端口绑两次。
 
 services:
   rocketmq-namesrv:
     environment:
       JAVA_OPT_EXT: ${ROCKETMQ_NAMESRV_JAVA_OPT:--Xms1g -Xmx1g}
-      ports:
-        - "${ROCKETMQ_NAMESRV_BIND:-127.0.0.1}:${ROCKETMQ_NAMESRV_PORT:-9876}:9876"
+    ports: !override
+      - "${ROCKETMQ_NAMESRV_BIND:-127.0.0.1}:${ROCKETMQ_NAMESRV_PORT:-9876}:9876"
 
   rocketmq-broker:
     environment:
       NAMESRV_ADDR: rocketmq-namesrv:9876
       JAVA_OPT_EXT: ${ROCKETMQ_BROKER_JAVA_OPT:--Xms2g -Xmx2g}
-    ports:
+    ports: !override
       - "${ROCKETMQ_BROKER_BIND:-127.0.0.1}:${ROCKETMQ_BROKER_PORT:-10911}:10911"
       - "${ROCKETMQ_BROKER_BIND:-127.0.0.1}:${ROCKETMQ_BROKER_HA_PORT:-10912}:10912"
       - "${ROCKETMQ_BROKER_BIND:-127.0.0.1}:${ROCKETMQ_BROKER_VIP_PORT:-10909}:10909"
-    volumes:
+    volumes: !override
       - cms-back-rocketmq-store:/home/rocketmq/store
       - cms-back-rocketmq-logs:/home/rocketmq/logs
       - ./deploy/rocketmq/broker-prod.conf:/home/rocketmq/conf/broker.conf:ro
-    extra_hosts: []
+    extra_hosts: !override []
     command:
       [
         "sh",
