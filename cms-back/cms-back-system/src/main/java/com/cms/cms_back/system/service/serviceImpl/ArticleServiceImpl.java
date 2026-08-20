@@ -3,6 +3,7 @@ package com.cms.cms_back.system.service.serviceImpl;
 import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.cms.cms_back.system.mapper.ArticleMapper;
 import com.cms.cms_back.system.mapper.NodeMapper;
@@ -14,6 +15,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.cms.cms_back.common.exception.BizException;
 import com.cms.cms_back.common.exception.ErrorCode;
 import com.cms.cms_back.pojo.dto.article.CreateArticleDTO;
+import com.cms.cms_back.pojo.dto.article.SaveArticleDTO;
 import com.cms.cms_back.pojo.entity.Article;
 import com.cms.cms_back.pojo.entity.Node;
 import com.cms.cms_back.pojo.entity.Space;
@@ -33,6 +35,9 @@ public class ArticleServiceImpl implements ArticleService {
         this.spaceMapper = spaceMapper;
     }
 
+    /**
+     * 获取文章
+     */
     @Override
     public GetArticleVO getArticle(Long nodeId) {
         if (nodeId == null || nodeId <= 0) {
@@ -44,6 +49,9 @@ public class ArticleServiceImpl implements ArticleService {
         return toVO(article);
     }
 
+    /**
+     * 获取公开文章
+     */
     @Override
     public GetArticleVO getPublicArticle(String slug, Long nodeId) {
         if (nodeId == null || nodeId <= 0) {
@@ -67,6 +75,9 @@ public class ArticleServiceImpl implements ArticleService {
         return toVO(article);
     }
 
+    /**
+     * 创建文章
+     */
     @Override
     public void create(CreateArticleDTO dto, Long userId) {
         if (hasArticle(dto.getNodeId())) {
@@ -89,6 +100,34 @@ public class ArticleServiceImpl implements ArticleService {
         articleMapper.insert(article);
     }
 
+    /**
+     * 保存文章
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void save(Long nodeId, SaveArticleDTO dto, Long userId) {
+        if (nodeId == null || nodeId <= 0) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "文章节点ID不能为空");
+        }
+
+        Article article = getArticleByNodeId(nodeId);
+        if (article == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "文章不存在");
+        }
+
+        LambdaUpdateWrapper<Article> updateWrapper = new LambdaUpdateWrapper<Article>()
+                .eq(Article::getNodeId, nodeId)
+                .isNull(Article::getDeletedAt)
+                .set(Article::getContent, dto.getContent());
+
+        articleMapper.update(null, updateWrapper);
+
+        changeArticlePublishStatus(nodeId, PublishStatus.formCode(dto.getPublishStatus()), userId);
+    }
+
+    /**
+     * 删除文章
+     */
     @Override
     public void delete(Long nodeId) {
         if (nodeId == null || nodeId <= 0) {
@@ -105,9 +144,56 @@ public class ArticleServiceImpl implements ArticleService {
         }
 
         articleMapper.update(null, new LambdaUpdateWrapper<Article>()
-            .eq(Article::getNodeId, nodeId)
-            .set(Article::getDeletedAt, LocalDateTime.now())
-        );
+                .eq(Article::getNodeId, nodeId)
+                .set(Article::getDeletedAt, LocalDateTime.now()));
+    }
+
+    /**
+     * 发布文章
+     * 
+     * @param nodeId
+     * @param userId
+     */
+    @Override
+    public void publish(Long nodeId, Long userId) {
+        changeArticlePublishStatus(nodeId, PublishStatus.PUBLISHED, userId);
+    }
+
+    /**
+     * 取消发布文章
+     */
+    @Override
+    public void unpublish(Long nodeId, Long userId) {
+        changeArticlePublishStatus(nodeId, PublishStatus.DRAFT, userId);
+    }
+
+    /**
+     * 改变文章发布状态
+     * @param nodeId
+     * @param publishStatus
+     * @param userId
+     */
+    private void changeArticlePublishStatus(Long nodeId, PublishStatus publishStatus, Long userId) {
+        if (nodeId == null || nodeId <= 0) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "文章节点ID不能为空");
+        }
+
+        Article article = getArticleByNodeId(nodeId);
+        if (article == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "文章不存在");
+        }
+
+        boolean isPublished = article.getPublishStatus() == PublishStatus.PUBLISHED;
+
+        LocalDateTime publishAt = publishStatus == PublishStatus.DRAFT ? article.getPublishAt()
+                : (isPublished ? article.getPublishAt() : LocalDateTime.now());
+
+        articleMapper.update(null, new LambdaUpdateWrapper<Article>()
+                .eq(Article::getNodeId, nodeId)
+                .isNull(Article::getDeletedAt)
+                .set(Article::getPublishStatus, publishStatus)
+                .set(Article::getPublishAt, publishAt)
+                .set(Article::getUpdatedBy, userId));
     }
 
     private GetArticleVO toVO(Article article) {

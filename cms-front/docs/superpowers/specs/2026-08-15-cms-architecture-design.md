@@ -25,8 +25,9 @@
 |--------|------|
 | 前端形态 | 单仓库双 Vite 入口：`admin` / `docs` |
 | docs 访问 | 完全公开，无需登录 |
-| 发布流程 | 草稿 / 已发布；支持下架回草稿 |
-| 已发布再编辑保存 | **立刻对外生效**，并写 `updated` 事件 |
+| 发布流程 | 草稿 / 已发布；两按钮：保存草稿 / 发布 |
+| 保存草稿 | **无论当前是草稿还是已发布**，一律存正文并将状态改为 `draft`（已发布则等同下架），写 `unpublished` 事件（若原先为 published） |
+| 发布 | **无论当前是草稿还是已发布**，一律存正文（若有）并将状态改为 `published`；首次发布设 `publish_at`，写 `published` 事件 |
 | 内容组织 | 多知识库（Space），如 Shopchup、物联网 |
 | 数据库 | PostgreSQL |
 | 后端形态 | 单体 Spring Boot |
@@ -90,7 +91,8 @@
 - `source` → `spaces.slug`
 - `MENU_TYPE`（GROUP/MENU/ARTICLE）→ `nodes.type`
 - 文章上线/下线 → `articles.publish_status`（`draft` \| `published`）
-- 目录节点可用简单 `status` 控制是否在树中展示
+- 已发布文章在 docs 是否展示 → `nodes.status`（展示 / 隐藏）；草稿不看该字段，docs 一律不可见
+- 目录节点可用 `nodes.status` 控制是否在树中展示
 
 ### 表结构
 
@@ -112,8 +114,11 @@
 
 ### 树与可见性
 
-- **admin**：某 Space 整树 + 全部文章（含草稿）。
-- **docs**：仅包含「文章为 published」的 article 节点及其祖先路径；草稿文章节点不出现在公开树。
+- **admin**：某 Space 整树 + 全部文章（含草稿）；可查看发布状态。
+- **docs**：
+  - `publish_status = draft` 的文章节点**默认不可见**（不出现在公开树，直接访问正文 → 404）。
+  - `publish_status = published` 的文章节点才有资格出现在 docs；再由 `nodes.status`（展示 / 隐藏）由运营手动控制是否在树上展示。
+  - 公开树仅含「已发布且节点为展示」的 article 节点及其祖先路径。
 - **删除（MVP）**：禁止删除仍有子节点的 group/menu；文章与节点采用软删（`deleted_at`），public/admin 列表默认过滤已删数据。
 
 ## 5. API、鉴权与数据流
@@ -132,9 +137,9 @@
 | GET/POST/PUT | `/api/admin/spaces`… | Space CRUD |
 | GET | `/api/admin/spaces/{slug}/tree` | 完整树（含草稿） |
 | POST/PUT/DELETE | `/api/admin/nodes`… | 节点维护 |
-| GET/PUT | `/api/admin/articles/{id}` | 读/存正文 |
-| POST | `/api/admin/articles/{id}/publish` | 发布 |
-| POST | `/api/admin/articles/{id}/unpublish` | 下架 |
+| GET | `/api/admin/articles/{id}` | 读正文与发布状态 |
+| PUT | `/api/admin/articles/{id}` | 保存草稿：存正文并强制 `draft` |
+| POST | `/api/admin/articles/{id}/publish` | 发布：强制 `published`（可顺带存正文） |
 
 ### Public API（无登录）
 
@@ -144,12 +149,14 @@
 | GET | `/api/public/spaces/{slug}/tree` | 仅已发布可见树 |
 | GET | `/api/public/spaces/{slug}/articles/{id}` | 已发布正文；否则 404 |
 
-### 数据流
+### 数据流（admin 文章编辑）
 
-1. **保存草稿/正文**：`PUT article`；若当前已是 `published`，保存后仍为 `published`，内容立即对 docs 生效，并写入 `publish_events.updated`。
-2. **发布**：`draft` → `published`，设置 `published_at`，写 `published` 事件。
-3. **下架**：`published` → `draft`，写 `unpublished` 事件；public 立即不可见。
-4. **docs 阅读**：Space 列表 → public tree → public article。
+1. **创建文章节点**：插入 `nodes`（type=article）后自动创建空草稿 `articles`（`publish_status=draft`）。
+2. **点击文章节点**：右侧预览正文，并展示当前状态（草稿 / 已发布）。
+3. **编辑**：进入编辑态，修改正文。
+4. **保存草稿**：存正文；**无论原先是 draft 还是 published**，一律改为 `draft`。若原先为 published，写 `unpublished` 事件，docs 立即不可见。
+5. **发布**：存正文（若编辑态一并提交）；**无论原先是 draft 还是 published**，一律改为 `published`。首次发布设置 `publish_at`，写 `published` 事件；已发布再点发布则更新正文并保持 published（`publish_at` 不刷新）。
+6. **docs 阅读**：仅「已发布且节点展示」的文章进入 public tree → public article。
 
 ### 后期 RAG 预留（不实现）
 
@@ -180,8 +187,8 @@
 
 **后端**
 
-- 发布/下架后 public tree 与 article 可见性。
-- 已发布再保存 → public 内容更新 + `updated` 事件。
+- 发布后 public tree / article 可见；保存草稿（含从已发布回草稿）后 public 立即不可见。
+- 已发布文章将节点设为隐藏后，docs 树不展示该节点。
 - 未登录访问 admin → 401。
 
 **前端**
@@ -197,7 +204,7 @@ MongoDB 适合半结构化、高吞吐流水、字段频繁变化的场景。本
 
 ## 9. 成功标准
 
-- 运营可在 admin 维护多 Space目录与文章，草稿/发布/下架闭环可用。
-- 匿名用户可在 docs 仅看到已发布内容。
+- 运营可在 admin 维护多 Space目录与文章，创建草稿 / 保存草稿 / 发布闭环可用。
+- 匿名用户可在 docs 仅看到「已发布且节点展示」的内容。
 - 数据模型与 `publish_events` 足以支撑后续独立 RAG 接入，而无需重构主表。
 - 前后端边界清晰，可在单体内完成 MVP 上线。

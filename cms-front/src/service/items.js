@@ -45,22 +45,22 @@ export async function getArticle (nodeId) {
   })
 }
 
-export async function saveArticle (id, params) {
-  return request(`/api/admin/articles/${id}`, {
+export async function saveArticle (nodeId, params) {
+  return request(`/api/admin/articles/${nodeId}`, {
     method: 'PUT',
-    params
+    data: params
   })
 }
 
-export async function publishArticle (id) {
-  return request(`/api/admin/articles/${id}/publish`, {
+export async function publishArticle (nodeId) {
+  return request(`/api/admin/articles/${nodeId}/publish`, {
     method: 'POST',
     params: {}
   })
 }
 
-export async function unpublishArticle (id) {
-  return request(`/api/admin/articles/${id}/unpublish`, {
+export async function unpublishArticle (nodeId) {
+  return request(`/api/admin/articles/${nodeId}/unpublish`, {
     method: 'POST',
     params: {}
   })
