@@ -36,6 +36,52 @@ services:
       timeout: 5s
       retries: 10
 
+  rocketmq-namesrv:
+    image: apache/rocketmq:${ROCKETMQ_IMAGE_TAG:-5.1.4}
+    container_name: cms-rocketmq-namesrv
+    restart: unless-stopped
+    ports:
+      - "${ROCKETMQ_NAMESRV_PORT:-9876}:9876"
+    environment:
+      JAVA_OPT_EXT: ${ROCKETMQ_NAMESRV_JAVA_OPT:--Xms512m -Xmx512m}
+    command: ["sh", "mqnamesrv"]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/9876'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+  
+  rocketmq-broker:
+    image: apache/rocketmq:${ROCKETMQ_IMAGE_TAG:-5.1.4}
+    container_name: cms-rocketmq-broker
+    restart: unless-stopped
+    depends_on:
+      rocketmq-namesrv:
+        condition: service_started
+    ports:
+      - "${ROCKETMQ_BROKER_PORT: -10911}:10911" # 主节点端口
+      - "${ROCKETMQ_BROKER_HA_PORT: -10912}:10912" # 主节点HA端口
+      - "${ROCKETMQ_BROKER_VIP_PORT: -10909}:10909" # 主节点VIP端口
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+      JAVA_OPT_EXT: ${ROCKETMQ_BROKER_JAVA_OPT:--Xms512m -Xmx512m}
+    volumes:
+      - cms-back-rocketmq-store:/home/rocketmq/store
+      - cms-back-rocketmq-logs:/home/rocketmq/logs
+      - ./deploy/rocketmq/broker-local.conf:/home/rocketmq/conf/broker.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["sh", "mqbroker", "-n", "rocketmq-namesrv:9876", "-c", "/home/rocketmq/conf/broker.conf"] # 启动broker
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/10911'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s # 启动延迟时间
+
 volumes:
   cms-back-redis:
   cms-back-db:
+  cms-back-rocketmq-store:
+  cms-back-rocketmq-logs:

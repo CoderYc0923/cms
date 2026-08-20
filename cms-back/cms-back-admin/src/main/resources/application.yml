@@ -49,3 +49,8 @@ security:
   jwt-secret: ${CMS_JWT_SECRET:please-change-me-to-a-very-long-secret-key-32bytes}
   access-token-ttl: 30m
   refresh-token-ttl: 7d
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+  producer:
+    group: ${ROCKETMQ_PRODUCER_GROUP:cms-back-admin-producer}
