@@ -16,7 +16,7 @@ public class CreateNodeDTO {
 
     private Long parentId;
 
-    @NotNull(message = "节点类型不能为空")
+    @NotBlank(message = "节点类型不能为空")
     private String type;
 
     @NotBlank(message = "标题不能为空")

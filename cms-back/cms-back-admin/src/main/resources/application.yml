@@ -58,6 +58,7 @@ rocketmq:
 oss:
   endpoint: ${OSS_ENDPOINT} # 阿里云OSS的访问域名
   bucket: ${OSS_BUCKET}
+  oss_key_prefix: cms
   access-key-id: ${OSS_ACCESS_KEY_ID}
   access-key-secret: ${OSS_ACCESS_KEY_SECRET}
   signed-get-expire-seconds: 600 # 10分钟
