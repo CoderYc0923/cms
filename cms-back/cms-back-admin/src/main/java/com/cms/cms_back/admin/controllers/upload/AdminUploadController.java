@@ -22,6 +22,10 @@ import com.cms.cms_back.pojo.vo.upload.SignPartsVO;
 
 import jakarta.validation.Valid;
 
+/**
+ * 文件上传控制器
+ * AdminUploadController
+ */
 @RestController
 @RequestMapping("/admin/files")
 public class AdminUploadController {
