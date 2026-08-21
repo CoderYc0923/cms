@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-add-media-files-table
+      author: Cyrus
+      comment: 添加媒体文件表
+      changes:
+        - sqlFile:
+            path: db/changelog/changes/005-add-media-files-table.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: true
