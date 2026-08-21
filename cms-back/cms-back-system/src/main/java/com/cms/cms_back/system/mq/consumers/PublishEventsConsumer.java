@@ -5,6 +5,7 @@ import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import com.cms.cms_back.pojo.constants.mq.consumer.PublishEventsConstant;
 import com.cms.cms_back.pojo.dto.mq.PublishEventsMessage;
@@ -28,25 +29,14 @@ public class PublishEventsConsumer implements RocketMQListener<PublishEventsMess
 
     @Override
     public void onMessage(PublishEventsMessage message) {
-        if (message == null) {
-            log.error("消费发布事件消息失败,消息体为空");
-            throw new RuntimeException("事件消息体为空");
+        if (message == null || message.getNodeId() == null || message.getUserId() == null
+                || message.getEventType() == null || !StringUtils.hasText(message.getEventId())) {
+            log.error("消费发布事件消息失败,非法消息体, message: {}", message);
+            return;
         }
 
-        if (message.getNodeId() == null || message.getUserId() == null || message.getEventType() == null) {
-            log.error("消费发布事件消息失败,消息体参数异常，nodeId：{}, userId: {}, eventType: {}", message.getNodeId(),
-                    message.getUserId(), message.getEventType());
-        }
-
-        try {
-            publishEventsService.createEvent(message.getNodeId(), message.getUserId(), message.getEventType(),
-                    message.getPayload());
-            log.info("消费发布事件消息成功,nodeId：{}, userId: {}, eventType: {}", message.getNodeId(), message.getUserId(),
-                    message.getEventType());
-        } catch (RuntimeException e) {
-            log.error("消费发布事件消息失败,message：{}", message, e);
-            throw e;
-        }
-
+        publishEventsService.createEvent(message);
+        log.info("消费发布事件消息成功,nodeId：{}, userId: {}, eventType: {}", message.getNodeId(), message.getUserId(),
+                message.getEventType());
     }
 }

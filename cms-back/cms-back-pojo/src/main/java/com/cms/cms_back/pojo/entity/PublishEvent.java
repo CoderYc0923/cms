@@ -16,6 +16,9 @@ public class PublishEvent {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 事件ID */
+    private String eventId;
+
     /** 文章ID */
     private Long articleId;
 

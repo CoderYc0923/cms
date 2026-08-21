@@ -19,6 +19,8 @@ public class PublishEventsMessage implements Serializable {
 
     private Long userId;
 
+    private String eventId;
+
     private PublishEventType eventType;
 
     private String payload;

@@ -3,7 +3,9 @@ package com.cms.cms_back.system.service.serviceImpl;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,9 @@ import com.cms.cms_back.pojo.enums.PublishEventType;
 import com.cms.cms_back.pojo.enums.PublishStatus;
 import com.cms.cms_back.pojo.vo.article.GetArticleVO;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class ArticleServiceImpl implements ArticleService {
 
@@ -37,6 +42,8 @@ public class ArticleServiceImpl implements ArticleService {
     private final SpaceMapper spaceMapper;
     private final ObjectMapper objectMapper;
     private final PublishEventsProducer publishEventsProducer;
+
+    private static final Logger log = LoggerFactory.getLogger(ArticleServiceImpl.class);
 
     public ArticleServiceImpl(ArticleMapper articleMapper, NodeMapper nodeMapper, SpaceMapper spaceMapper,
             ObjectMapper objectMapper, PublishEventsProducer publishEventsProducer) {
@@ -109,7 +116,11 @@ public class ArticleServiceImpl implements ArticleService {
 
         article.setCreatedBy(userId);
 
-        articleMapper.insert(article);
+        try {
+            articleMapper.insert(article);
+        } catch (DuplicateKeyException e) {
+            log.info("文章已存在, nodeId: {}", dto.getNodeId());
+        }
     }
 
     /**
@@ -234,9 +245,12 @@ public class ArticleServiceImpl implements ArticleService {
 
         String payloadJson = toJson(payload);
 
+        String eventId = UUID.randomUUID().toString().replace("-", "");
+
         PublishEventsMessage message = new PublishEventsMessage();
         message.setNodeId(nodeId);
         message.setUserId(userId);
+        message.setEventId(eventId);
         message.setEventType(eventType);
         message.setPayload(payloadJson);
 

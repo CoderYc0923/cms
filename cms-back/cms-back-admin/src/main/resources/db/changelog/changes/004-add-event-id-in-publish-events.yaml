@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-add-event-id-in-publish-events
+      author: Cyrus
+      comment: 添加事件ID到发布事件表
+      changes:
+        - sqlFile:
+            path: db/changelog/changes/004-add-event-id-in-publish-events.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: true
