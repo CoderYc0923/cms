@@ -35,7 +35,6 @@ public class CreateArticleNodeConsumer implements RocketMQListener<ArticleNodeMe
         }
         if (message.getNodeId() == null || message.getUserId() == null) {
             log.error("消费创建文章节点消息失败,消息体参数异常，nodeId：{}, userId: {}, message: {}", message.getNodeId(), message.getUserId(), message);
-            throw new RuntimeException("消息体参数异常");
         }
 
         try {

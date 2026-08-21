@@ -1,6 +1,8 @@
 package com.cms.cms_back.system.service.serviceImpl;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -8,7 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.cms.cms_back.system.mapper.ArticleMapper;
 import com.cms.cms_back.system.mapper.NodeMapper;
 import com.cms.cms_back.system.mapper.SpaceMapper;
+import com.cms.cms_back.system.mq.producers.PublishEventsProducer;
 import com.cms.cms_back.system.service.ArticleService;
+
+import tools.jackson.databind.ObjectMapper;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -16,9 +21,11 @@ import com.cms.cms_back.common.exception.BizException;
 import com.cms.cms_back.common.exception.ErrorCode;
 import com.cms.cms_back.pojo.dto.article.CreateArticleDTO;
 import com.cms.cms_back.pojo.dto.article.SaveArticleDTO;
+import com.cms.cms_back.pojo.dto.mq.PublishEventsMessage;
 import com.cms.cms_back.pojo.entity.Article;
 import com.cms.cms_back.pojo.entity.Node;
 import com.cms.cms_back.pojo.entity.Space;
+import com.cms.cms_back.pojo.enums.PublishEventType;
 import com.cms.cms_back.pojo.enums.PublishStatus;
 import com.cms.cms_back.pojo.vo.article.GetArticleVO;
 
@@ -28,11 +35,16 @@ public class ArticleServiceImpl implements ArticleService {
     private final ArticleMapper articleMapper;
     private final NodeMapper nodeMapper;
     private final SpaceMapper spaceMapper;
+    private final ObjectMapper objectMapper;
+    private final PublishEventsProducer publishEventsProducer;
 
-    public ArticleServiceImpl(ArticleMapper articleMapper, NodeMapper nodeMapper, SpaceMapper spaceMapper) {
+    public ArticleServiceImpl(ArticleMapper articleMapper, NodeMapper nodeMapper, SpaceMapper spaceMapper,
+            ObjectMapper objectMapper, PublishEventsProducer publishEventsProducer) {
         this.articleMapper = articleMapper;
         this.nodeMapper = nodeMapper;
         this.spaceMapper = spaceMapper;
+        this.objectMapper = objectMapper;
+        this.publishEventsProducer = publishEventsProducer;
     }
 
     /**
@@ -169,6 +181,7 @@ public class ArticleServiceImpl implements ArticleService {
 
     /**
      * 改变文章发布状态
+     * 
      * @param nodeId
      * @param publishStatus
      * @param userId
@@ -194,6 +207,40 @@ public class ArticleServiceImpl implements ArticleService {
                 .set(Article::getPublishStatus, publishStatus)
                 .set(Article::getPublishAt, publishAt)
                 .set(Article::getUpdatedBy, userId));
+
+        sendPublishEvents(nodeId, publishStatus, isPublished, userId, article);
+
+    }
+
+    private void sendPublishEvents(Long nodeId, PublishStatus publishStatus, boolean isPublished, Long userId,
+            Article article) {
+
+        PublishEventType eventType = PublishEventType.PUBLISHED;
+        if (publishStatus == PublishStatus.DRAFT) {
+            eventType = PublishEventType.UNPUBLISHED;
+        } else {
+            eventType = isPublished ? PublishEventType.UPDATED : PublishEventType.PUBLISHED;
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("nodeId", nodeId);
+        payload.put("userId", userId);
+        String content = null;
+        if (article.getContent() != null) {
+            int len = Math.min(article.getContent().length(), 20);
+            content = article.getContent().substring(0, len);
+        }
+        payload.put("content", content);
+
+        String payloadJson = toJson(payload);
+
+        PublishEventsMessage message = new PublishEventsMessage();
+        message.setNodeId(nodeId);
+        message.setUserId(userId);
+        message.setEventType(eventType);
+        message.setPayload(payloadJson);
+
+        publishEventsProducer.publishAfterCommit(message);
     }
 
     private GetArticleVO toVO(Article article) {
@@ -212,6 +259,14 @@ public class ArticleServiceImpl implements ArticleService {
                 .createdBy(article.getCreatedBy())
                 .updatedBy(article.getUpdatedBy())
                 .build();
+    }
+
+    private String toJson(Object o) {
+        try {
+            return objectMapper.writeValueAsString(o);
+        } catch (Exception e) {
+            throw e;
+        }
     }
 
     /**
