@@ -5,6 +5,7 @@ import java.net.URI;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,12 +14,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cms.cms_back.common.api.ApiResult;
+import com.cms.cms_back.framework.security.UserInfo;
 import com.cms.cms_back.pojo.dto.upload.CompleteUploadDTO;
 import com.cms.cms_back.pojo.dto.upload.InitUploadDTO;
 import com.cms.cms_back.pojo.dto.upload.SignPartsDTO;
 import com.cms.cms_back.pojo.vo.upload.CompleteUploadVO;
 import com.cms.cms_back.pojo.vo.upload.InitUploadVO;
 import com.cms.cms_back.pojo.vo.upload.SignPartsVO;
+import com.cms.cms_back.system.service.UploadService;
 
 import jakarta.validation.Valid;
 
@@ -30,6 +33,12 @@ import jakarta.validation.Valid;
 @RequestMapping("/admin/files")
 public class AdminUploadController {
 
+    private UploadService uploadService;
+
+    public AdminUploadController(UploadService uploadService) {
+        this.uploadService = uploadService;
+    }
+
     /**
      * 初始化上传
      * 
@@ -37,7 +46,9 @@ public class AdminUploadController {
      * @return
      */
     @PostMapping("/uploads/init")
-    public ApiResult<InitUploadVO> init(@Valid @RequestBody InitUploadDTO initUploadDTO) {
+    public ApiResult<InitUploadVO> init(@Valid @RequestBody InitUploadDTO initUploadDTO, @AuthenticationPrincipal UserInfo userInfo) {
+
+        uploadService.init(initUploadDTO, userInfo.userId());
 
         return ApiResult.success(null);
     }
