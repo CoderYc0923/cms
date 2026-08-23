@@ -1,5 +1,7 @@
 package com.cms.cms_back.system.oss;
 
+import java.util.List;
+
 public interface OssStorage {
 
     /**
@@ -18,5 +20,21 @@ public interface OssStorage {
      * @return
      */
     String initialMultipart(String ObjectKey, String contentType);
+
+    /**
+     * 确认对象已上传
+     * @param ObjectKey
+     * @return
+     */
+    OssObjectMeta head(String ObjectKey);
+
+    /**
+     * 完成分片上传
+     * @param ObjectKey
+     * @param uploadId
+     * @param parts
+     * @return
+     */
+    String completeMultipart(String ObjectKey, String uploadId, List<OssUploadPart> parts);
 
 }

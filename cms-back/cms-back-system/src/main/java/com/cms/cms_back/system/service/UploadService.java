@@ -13,7 +13,7 @@ public interface UploadService {
 
     SignPartsVO signParts(Long fileId, SignPartsDTO signPartsDTO);
 
-    CompleteUploadVO complete(Long fileId, CompleteUploadDTO completeUploadDTO);
+    CompleteUploadVO complete(Long fileId, CompleteUploadDTO completeUploadDTO, Long userId);
 
     Void abort(Long fileId);
 

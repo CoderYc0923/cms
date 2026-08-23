@@ -3,9 +3,13 @@ package com.cms.cms_back.system.service.serviceImpl;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,13 +17,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.cms.cms_back.system.mapper.MediaFilesMapper;
+import com.cms.cms_back.system.oss.OssObjectMeta;
 import com.cms.cms_back.system.oss.OssProperties;
 import com.cms.cms_back.system.oss.OssStorage;
+import com.cms.cms_back.system.oss.OssUploadPart;
 import com.cms.cms_back.system.service.UploadService;
 import com.cms.cms_back.pojo.vo.upload.InitUploadVO;
 import com.cms.cms_back.pojo.dto.upload.InitUploadDTO;
 import com.cms.cms_back.pojo.vo.upload.SignPartsVO;
 import com.cms.cms_back.pojo.dto.upload.SignPartsDTO;
+import com.cms.cms_back.pojo.dto.upload.CompleteUploadDTO.CompletePartDTO;
 import com.cms.cms_back.pojo.entity.MediaFiles;
 import com.cms.cms_back.pojo.enums.MediaFilesAccessLevelType;
 import com.cms.cms_back.pojo.enums.MediaFilesBizType;
@@ -39,6 +46,7 @@ public class UploadServiceImpl implements UploadService {
     private final OssStorage ossStorage;
 
     private static final Logger log = LoggerFactory.getLogger(UploadServiceImpl.class);
+    private static final String OSS_STABLE_URL_TEMPLATE = "/api/public/files/%s/content";
     private static final Map<String, String> CONTENT_TYPE_EXTENSION_MAP = Map.of(
             "image/jpeg", ".jpg",
             "image/png", ".png",
@@ -80,17 +88,19 @@ public class UploadServiceImpl implements UploadService {
         mediaFile.setStatus(MediaFilesStatus.UPLOADING);
         mediaFile.setAccessLevel(MediaFilesAccessLevelType.PRIVATE);
 
-        mediaFilesMapper.insert(mediaFile);
-
         try {
             InitUploadVO vo = toInitVO(mediaFile, isMultiPart);
+            if (isMultiPart) {
+                mediaFile.setUploadId(vo.getUploadId());
+            }
+            mediaFilesMapper.insert(mediaFile);
             log.info("初始化上传成功，fileId: {}, mode: {}, userId: {}", mediaFile.getId(), vo.getMode(), userId);
             return vo;
         } catch (BizException e) {
             throw e;
-        }
-        catch (Exception e) {
-            log.error("初始化上传失败，fileId: {}, objectKey: {}, userId: {}", mediaFile.getId(), mediaFile.getObjectKey(), userId, e);
+        } catch (Exception e) {
+            log.error("初始化上传失败，fileId: {}, objectKey: {}, userId: {}", mediaFile.getId(), mediaFile.getObjectKey(),
+                    userId, e);
             throw BizException.of(ErrorCode.INTERNAL_ERROR, "初始化上传失败");
         }
 
@@ -108,8 +118,36 @@ public class UploadServiceImpl implements UploadService {
      * 完成上传
      */
     @Override
-    public CompleteUploadVO complete(Long fileId, CompleteUploadDTO completeUploadDTO) {
-        return null;
+    public CompleteUploadVO complete(Long fileId, CompleteUploadDTO completeUploadDTO, Long userId) {
+        MediaFiles mediaFiles = validateCompleteUploadFile(fileId, userId);
+
+        if (mediaFiles.getStatus() == MediaFilesStatus.READY) {
+            return toCompleteVO(mediaFiles);
+        }
+
+        boolean isMultiPart = isMultiPartUpload(mediaFiles);
+
+        try {
+            if (isMultiPart) {
+                completeMultiPartUpload(mediaFiles, completeUploadDTO);
+            } else {
+                completeSingleUpload(mediaFiles);
+            }
+
+            mediaFiles.setStatus(MediaFilesStatus.READY);
+            mediaFiles.setUploadId(null);
+            mediaFilesMapper.updateById(mediaFiles);
+
+            log.info("完成上传操作成功，fileId: {}, userId: {}, objectKey: {}, mode: {}", fileId, userId,
+                    mediaFiles.getObjectKey(), isMultiPart ? UploadModeType.MULTIPART : UploadModeType.SINGLE);
+            return toCompleteVO(mediaFiles);
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("完成上传操作失败，fileId: {}, userId: {}, objectKey: {}", fileId, userId, mediaFiles.getObjectKey(), e);
+            throw BizException.of(ErrorCode.INTERNAL_ERROR, "完成上传操作失败，fileId");
+        }
+
     }
 
     /**
@@ -126,6 +164,105 @@ public class UploadServiceImpl implements UploadService {
     @Override
     public String getContent(Long fileId) {
         return null;
+    }
+
+    /**
+     * 完成分片上传
+     * 
+     * @param mediaFiles
+     * @param completeUploadDTO
+     */
+    private void completeMultiPartUpload(MediaFiles mediaFiles, CompleteUploadDTO completeUploadDTO) {
+        if (completeUploadDTO == null || completeUploadDTO.getParts() == null
+                || completeUploadDTO.getParts().isEmpty()) {
+            throw BizException.badRequest("分片信息不能为空");
+        }
+
+        List<CompletePartDTO> parts = completeUploadDTO.getParts();
+        validateCompleteParts(mediaFiles, parts);
+
+        List<OssUploadPart> ossParts = parts.stream()
+                .map(p -> new OssUploadPart(p.getPartNumber(), p.getEtag()))
+                .collect(Collectors.toList());
+
+        String etag = ossStorage.completeMultipart(mediaFiles.getObjectKey(), mediaFiles.getUploadId(), ossParts);
+
+        mediaFiles.setEtag(etag);
+    }
+
+    /**
+     * 完成单次上传
+     * 
+     * @param mediaFiles
+     */
+    private void completeSingleUpload(MediaFiles mediaFiles) {
+        OssObjectMeta metaDMeta = ossStorage.head(mediaFiles.getObjectKey());
+        mediaFiles.setEtag(metaDMeta.etag());
+        mediaFiles.setSizeBytes(metaDMeta.sizeBytes());
+    }
+
+    /**
+     * 验证完成上传分片
+     * 
+     * @param parts
+     */
+    private void validateCompleteParts(MediaFiles mediaFiles, List<CompletePartDTO> parts) {
+        long partSize = ossProperties.getMultipartPartSizeBytes();
+        /** 计算期望的分片数量 */
+        int expectedPartCount = (int) Math.ceil((double) mediaFiles.getSizeBytes() / partSize);
+
+        if (parts.size() != expectedPartCount) {
+            throw BizException.badRequest("分片数量不匹配");
+        }
+
+        Set<Integer> partNumbers = new HashSet<>();
+        for (CompletePartDTO part : parts) {
+            int partNumber = part.getPartNumber();
+            if (partNumber < 1 || partNumber > expectedPartCount) {
+                throw BizException.badRequest("分片号无效");
+            }
+            if (partNumbers.contains(partNumber)) {
+                throw BizException.badRequest("分片号重复");
+            }
+            partNumbers.add(partNumber);
+        }
+
+    }
+
+    /**
+     * 验证完成上传文件
+     * 
+     * @param fileId
+     * @param userId
+     * @return
+     */
+    private MediaFiles validateCompleteUploadFile(Long fileId, Long userId) {
+        if (fileId == null || fileId <= 0) {
+            throw BizException.badRequest("文件ID无效");
+        }
+
+        MediaFiles mediaFile = mediaFilesMapper.selectById(fileId);
+        if (mediaFile == null) {
+            throw BizException.notFound("文件不存在");
+        }
+        if (!mediaFile.getCreatedBy().equals(userId)) {
+            throw BizException.forbidden("无权限操作此文件");
+        }
+        if (mediaFile.getStatus() != MediaFilesStatus.UPLOADING && mediaFile.getStatus() != MediaFilesStatus.READY) {
+            throw BizException.badRequest("文件状态异常");
+        }
+
+        return mediaFile;
+    }
+
+    /**
+     * 判断是否是分片上传
+     * 
+     * @param mediaFile
+     * @return
+     */
+    private boolean isMultiPartUpload(MediaFiles mediaFile) {
+        return mediaFile.getUploadId() != null && !mediaFile.getUploadId().isBlank();
     }
 
     /**
@@ -196,6 +333,41 @@ public class UploadServiceImpl implements UploadService {
         return ext;
     }
 
+    /**
+     * 生成上传URL
+     * 
+     * @param mediaFile
+     * @return
+     */
+    private String generatePutUrl(MediaFiles mediaFile) {
+        String putUrl = ossStorage.presignPut(mediaFile.getObjectKey(), mediaFile.getContentType(),
+                ossProperties.getSignedPutExpireSeconds());
+
+        return putUrl;
+    }
+
+    /**
+     * 生成上传ID
+     * 
+     * @param mediaFile
+     * @return
+     */
+    private String generateUploadId(MediaFiles mediaFile) {
+        String uploadId = ossStorage.initialMultipart(mediaFile.getObjectKey(), mediaFile.getContentType());
+
+        return uploadId;
+    }
+
+    /**
+     * 生成稳定URL
+     * 
+     * @param fileId
+     * @return
+     */
+    private String generateStableUrl(Long fileId) {
+        return String.format(OSS_STABLE_URL_TEMPLATE, fileId);
+    }
+
     private InitUploadVO toInitVO(MediaFiles mediaFile, boolean isMultiPart) {
         if (mediaFile == null) {
             throw BizException.badRequest("文件不存在");
@@ -226,28 +398,9 @@ public class UploadServiceImpl implements UploadService {
         return vo;
     }
 
-    /**
-     * 生成上传URL
-     * 
-     * @param mediaFile
-     * @return
-     */
-    private String generatePutUrl(MediaFiles mediaFile) {
-        String putUrl = ossStorage.presignPut(mediaFile.getObjectKey(), mediaFile.getContentType(),
-                ossProperties.getSignedPutExpireSeconds());
-
-        return putUrl;
-    }
-
-    /**
-     * 生成上传ID
-     * 
-     * @param mediaFile
-     * @return
-     */
-    private String generateUploadId(MediaFiles mediaFile) {
-        String uploadId = ossStorage.initialMultipart(mediaFile.getObjectKey(), mediaFile.getContentType());
-
-        return uploadId;
+    private CompleteUploadVO toCompleteVO(MediaFiles mediaFiles) {
+        return CompleteUploadVO.builder()
+                .stableUrl(generateStableUrl(mediaFiles.getId()))
+                .build();
     }
 }

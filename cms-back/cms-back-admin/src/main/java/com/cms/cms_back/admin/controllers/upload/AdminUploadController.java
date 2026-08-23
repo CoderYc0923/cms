@@ -46,7 +46,8 @@ public class AdminUploadController {
      * @return
      */
     @PostMapping("/uploads/init")
-    public ApiResult<InitUploadVO> init(@Valid @RequestBody InitUploadDTO initUploadDTO, @AuthenticationPrincipal UserInfo userInfo) {
+    public ApiResult<InitUploadVO> init(@Valid @RequestBody InitUploadDTO initUploadDTO,
+            @AuthenticationPrincipal UserInfo userInfo) {
 
         uploadService.init(initUploadDTO, userInfo.userId());
 
@@ -70,8 +71,9 @@ public class AdminUploadController {
      */
     @PostMapping("/uploads/{fileId}/complete")
     public ApiResult<CompleteUploadVO> complete(@PathVariable Long fileId,
-            @Valid @RequestBody(required = false) CompleteUploadDTO completeUploadDTO) {
-        return ApiResult.success(null);
+            @Valid @RequestBody(required = false) CompleteUploadDTO completeUploadDTO, @AuthenticationPrincipal UserInfo userInfo) {
+        CompleteUploadVO vo = uploadService.complete(fileId, completeUploadDTO, userInfo.userId());
+        return ApiResult.success(vo);
     }
 
     /**
@@ -91,13 +93,13 @@ public class AdminUploadController {
      */
     @GetMapping("/{fileId}/content")
     public ResponseEntity<Void> getContent(@PathVariable Long fileId) {
-        
+
         String signedUrl = "https://xxx.com/xxx";
 
         return ResponseEntity
-            .status(HttpStatus.FOUND) // 302
-            .location(URI.create(signedUrl))
-            .cacheControl(CacheControl.noStore()) // 不缓存
-            .build();
+                .status(HttpStatus.FOUND) // 302
+                .location(URI.create(signedUrl))
+                .cacheControl(CacheControl.noStore()) // 不缓存
+                .build();
     }
 }
