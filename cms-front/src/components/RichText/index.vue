@@ -14,12 +14,41 @@
       @onChange="handleChange"
       class="rich-text_editor preview-style"
     />
+
+    <a-modal
+      v-model:open="uploadModalVisible"
+      title="正在上传"
+      :footer="null"
+      :closable="false"
+      :mask-closable="false"
+      centered
+      width="420px"
+    >
+      <div class="rich-text_upload-panel">
+        <div class="rich-text_upload-name" :title="uploadFileName">
+          {{ uploadFileName }}
+        </div>
+        <a-progress :percent="uploadProgress" status="active" />
+        <a-button
+          block
+          danger
+          class="rich-text_upload-cancel"
+          :loading="uploadCancelling"
+          @click="handleCancelUpload"
+        >
+          取消上传
+        </a-button>
+      </div>
+    </a-modal>
   </div>
 </template>
 <script setup>
 import "@wangeditor/editor/dist/css/style.css";
 import "@/assets/style/resetEditor.less";
 import { Editor, Toolbar } from "@wangeditor/editor-for-vue";
+import { message } from "ant-design-vue";
+import { uploadToOss, UploadAbortError } from "@/utils/ossUpload";
+import { rewriteAdminFileUrls } from "@/utils/fileUrl";
 
 const props = defineProps({
   id: {
@@ -27,6 +56,14 @@ const props = defineProps({
     default: undefined,
   },
   content: {
+    type: String,
+    default: ""
+  },
+  spaceId: {
+    type: Number,
+    default: undefined
+  },
+  spaceSlug: {
     type: String,
     default: ""
   }
@@ -57,12 +94,84 @@ const editorConfig = {
 // 编辑器实例，必须用 shallowRef
 const editorRef = shallowRef();
 const [textContent, setTextContent] = useState("<p>请输入文章内容...</p>");
+const [uploadModalVisible, setUploadModalVisible] = useState(false);
+const [uploadProgress, setUploadProgress] = useState(0);
+const [uploadFileName, setUploadFileName] = useState("");
+const [uploadCancelling, setUploadCancelling] = useState(false);
+const cancelUploadTask = shallowRef(null);
+
+const resetUploadModal = () => {
+  setUploadModalVisible(false);
+  setUploadProgress(0);
+  setUploadFileName("");
+  setUploadCancelling(false);
+  cancelUploadTask.value = null;
+};
+
+const handleCancelUpload = async () => {
+  if (!cancelUploadTask.value || uploadCancelling.value) {
+    return;
+  }
+
+  setUploadCancelling(true);
+  try {
+    await cancelUploadTask.value();
+    message.info("已取消上传");
+  } catch (error) {
+    console.error("cancel upload failed", error);
+    message.error("取消上传失败");
+  } finally {
+    resetUploadModal();
+  }
+};
+
+const handleOssUpload = async (file, insertFn, type) => {
+  const editor = editorRef.value;
+
+  setUploadFileName(file.name);
+  setUploadProgress(0);
+  setUploadCancelling(false);
+  setUploadModalVisible(true);
+
+  const { promise, cancel } = uploadToOss(file, {
+    spaceId: props.spaceId,
+    spaceSlug: props.spaceSlug,
+    onProgress: (progress) => {
+      setUploadProgress(progress);
+      editor?.showProgressBar?.(progress);
+    },
+  });
+
+  cancelUploadTask.value = cancel;
+
+  try {
+    const stableUrl = await promise;
+    editor?.showProgressBar?.(100);
+    const previewUrl = rewriteAdminFileUrls(stableUrl);
+
+    if (type === "video") {
+      insertFn(previewUrl, "");
+      return;
+    }
+
+    insertFn(previewUrl, file.name, previewUrl);
+  } catch (error) {
+    if (error instanceof UploadAbortError || error?.name === "UploadAbortError") {
+      return;
+    }
+    console.error("upload failed", error);
+    message.error(error?.message || "上传失败");
+    throw error;
+  } finally {
+    resetUploadModal();
+  }
+};
 
 const initUpload = () => {
   editorConfig.MENU_CONF["uploadImage"] = {
     fieldName: `${props.id}-image`,
-    // 单个文件的最大体积限制，默认为 2M
-    maxFileSize: 2 * 1024 * 1024, // 2M
+    // 与后端 oss.max-image-bytes 对齐（10MB）
+    maxFileSize: 10 * 1024 * 1024,
     // 最多可上传几个文件，默认为 100
     maxNumberOfFiles: 100,
     // 选择文件时的类型限制，默认为 ['image/*'] 。如不想限制，则设置为 []
@@ -72,21 +181,15 @@ const initUpload = () => {
     onError(file, err, res) {
       console.log(`${file.name} 上传出错`, err, res);
     },
-    // 自定义上传
     async customUpload(file, insertFn) {
-      // TS 语法
-      // async customUpload(file, insertFn) {                   // JS 语法
-      // file 即选中的文件
-      // 自己实现上传，并得到图片 url alt href
-      // 最后插入图片
-      insertFn(url, alt, href);
+      await handleOssUpload(file, insertFn, "image");
     },
   };
 
   editorConfig.MENU_CONF["uploadVideo"] = {
     fieldName: `${props.id}-video`,
-    // 单个文件的最大体积限制，默认为 10M
-    maxFileSize: 10 * 1024 * 1024, // 10M
+    // 与后端 oss.max-video-bytes 对齐（500MB，走分片）
+    maxFileSize: 500 * 1024 * 1024,
     // 最多可上传几个文件，默认为 5
     maxNumberOfFiles: 5,
     // 选择文件时的类型限制，默认为 ['video/*'] 。如不想限制，则设置为 []
@@ -94,14 +197,8 @@ const initUpload = () => {
     onError(file, err, res) {
       console.log(`${file.name} 上传出错`, err, res);
     },
-    // 自定义上传
     async customUpload(file, insertFn) {
-      // TS 语法
-      // async customUpload(file, insertFn) {                   // JS 语法
-      // file 即选中的文件
-      // 自己实现上传，并得到视频 url poster
-      // 最后插入视频
-      insertFn(url, poster);
+      await handleOssUpload(file, insertFn, "video");
     },
   };
 };
@@ -150,6 +247,20 @@ defineExpose({ getRichTextHtml });
   &_editor {
     min-height: 500px;
     overflow-y: hidden;
+  }
+
+  &_upload-panel {
+    padding-top: 4px;
+  }
+
+  &_upload-name {
+    margin-bottom: 12px;
+    color: rgba(0, 0, 0, 0.65);
+    word-break: break-all;
+  }
+
+  &_upload-cancel {
+    margin-top: 16px;
   }
 }
 </style>

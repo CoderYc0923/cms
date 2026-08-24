@@ -14,7 +14,9 @@
         v-show="status === ACTION_STATUS.EDIT"
         :content="richTextHtml"
         ref="richTextRef"
-        :id="123"
+        :id="nodeId"
+        :space-id="spaceId"
+        :space-slug="spaceSlug"
       />
     </div>
     <div class="preview-sidebar">
@@ -42,6 +44,7 @@
 import Anchor from "@/components/Anchor/index.vue";
 import RichText from "@/components/RichText/index.vue";
 import { processHtmlForToc } from "@/utils/util";
+import { rewriteAdminFileUrls, toPublicFileUrl } from "@/utils/fileUrl";
 import { MENU_TYPE, MENU_TYPE_MSG, ACTION_STATUS } from "@/consts/enum";
 
 const props = defineProps({
@@ -56,6 +59,18 @@ const props = defineProps({
   readonly: {
     type: Boolean,
     default: false
+  },
+  nodeId: {
+    type: Number,
+    default: undefined
+  },
+  spaceId: {
+    type: Number,
+    default: undefined
+  },
+  spaceSlug: {
+    type: String,
+    default: ""
   }
 });
 
@@ -70,14 +85,18 @@ const [oldTitle, setOldTitle] = useState("");
 const [status, setStatus] = useState(ACTION_STATUS.SAVE);
 
 const handleInit = content => {
-  const { anchorItems, processedHtml } = processHtmlForToc(content);
+  const normalizedContent = props.readonly
+    ? content
+    : rewriteAdminFileUrls(content);
+  const { anchorItems, processedHtml } = processHtmlForToc(normalizedContent);
   setRichTextHtml(processedHtml);
   setAnchorItems(anchorItems);
 };
 
 const handleUpdateContent = content => {
   const html = richTextRef.value?.getRichTextHtml();
-  handleInit(content || html || oldRichTextHtml.value);
+  const nextHtml = content || html || oldRichTextHtml.value;
+  handleInit(props.readonly ? nextHtml : toPublicFileUrl(nextHtml));
 };
 
 const hanldeClear = () => {

@@ -4,7 +4,14 @@
       <Catalogue @articleClick="handleArticleClick" @nodeDeleted="handleNodeDeleted" />
     </div>
     <div class="flex-75">
-      <Preview :content="content" :title="title" v-show="hasArticle" />
+      <Preview
+        :content="content"
+        :title="title"
+        :node-id="currentNodeId"
+        space-slug="iot"
+        :space-id="2"
+        v-show="hasArticle"
+      />
       <Empty v-show="!hasArticle" />
     </div>
   </div>

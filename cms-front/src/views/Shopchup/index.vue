@@ -5,7 +5,14 @@
     </div>
     <div class="flex-75">
       <!--  <Article /> -->
-      <Preview :content="content" :title="title" v-show="hasArticle" />
+      <Preview
+        :content="content"
+        :title="title"
+        :node-id="currentNodeId"
+        space-slug="shopchup"
+        :space-id="1"
+        v-show="hasArticle"
+      />
       <Empty v-show="!hasArticle" />
     </div>
   </div>
