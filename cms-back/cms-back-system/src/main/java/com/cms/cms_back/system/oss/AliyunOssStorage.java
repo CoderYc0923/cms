@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 
 import com.aliyun.oss.HttpMethod;
 import com.aliyun.oss.OSSClient;
+import com.aliyun.oss.model.AbortMultipartUploadRequest;
 import com.aliyun.oss.model.CompleteMultipartUploadRequest;
 import com.aliyun.oss.model.CompleteMultipartUploadResult;
 import com.aliyun.oss.model.GeneratePresignedUrlRequest;
@@ -27,6 +28,19 @@ public class AliyunOssStorage implements OssStorage {
     public AliyunOssStorage(OssProperties ossProperties, OSSClient ossClient) {
         this.ossClient = ossClient;
         this.ossProperties = ossProperties;
+    }
+
+    /**
+     * 预签名获取
+     */
+    @Override
+    public String presignGet(String objectKey, long expireSeconds) {
+        Date expiration = new Date(System.currentTimeMillis() + expireSeconds * 1000L);
+
+        GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(ossProperties.getBucket(), objectKey, HttpMethod.GET);
+        request.setExpiration(expiration);
+
+        return ossClient.generatePresignedUrl(request).toString();
     }
 
     /**
@@ -112,6 +126,23 @@ public class AliyunOssStorage implements OssStorage {
         CompleteMultipartUploadRequest request = new CompleteMultipartUploadRequest(ossProperties.getBucket(), objectKey, uploadId,partETags);
         CompleteMultipartUploadResult result = ossClient.completeMultipartUpload(request);
         return result.getETag();
+    }
+
+    /**
+     * 取消分片上传
+     */
+    @Override
+    public void abortMultipart(String objectKey, String uploadId) {
+        AbortMultipartUploadRequest request = new AbortMultipartUploadRequest(ossProperties.getBucket(), objectKey, uploadId);
+        ossClient.abortMultipartUpload(request);  
+    }
+
+    /**
+     * 删除对象
+     */
+    @Override
+    public void deleteObject(String objectKey) {
+       ossClient.deleteObject(ossProperties.getBucket(), objectKey);
     }
 
     /**

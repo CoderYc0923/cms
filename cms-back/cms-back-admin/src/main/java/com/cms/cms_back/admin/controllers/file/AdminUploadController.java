@@ -1,4 +1,4 @@
-package com.cms.cms_back.admin.controllers.upload;
+package com.cms.cms_back.admin.controllers.file;
 
 import java.net.URI;
 
@@ -30,10 +30,10 @@ import jakarta.validation.Valid;
  * AdminUploadController
  */
 @RestController
-@RequestMapping("/admin/files")
+@RequestMapping("/api/admin/files")
 public class AdminUploadController {
 
-    private UploadService uploadService;
+    private final UploadService uploadService;
 
     public AdminUploadController(UploadService uploadService) {
         this.uploadService = uploadService;
@@ -49,9 +49,9 @@ public class AdminUploadController {
     public ApiResult<InitUploadVO> init(@Valid @RequestBody InitUploadDTO initUploadDTO,
             @AuthenticationPrincipal UserInfo userInfo) {
 
-        uploadService.init(initUploadDTO, userInfo.userId());
+        InitUploadVO vo = uploadService.init(initUploadDTO, userInfo.userId());
 
-        return ApiResult.success(null);
+        return ApiResult.success(vo);
     }
 
     /**
@@ -85,6 +85,7 @@ public class AdminUploadController {
      */
     @PostMapping("/uploads/{fileId}/abort")
     public ApiResult<Void> abort(@PathVariable Long fileId, @AuthenticationPrincipal UserInfo userInfo) {
+        uploadService.abort(fileId, userInfo.userId());
         return ApiResult.success(null);
     }
 
@@ -96,7 +97,7 @@ public class AdminUploadController {
     @GetMapping("/{fileId}/content")
     public ResponseEntity<Void> getContent(@PathVariable Long fileId, @AuthenticationPrincipal UserInfo userInfo) {
 
-        String signedUrl = "https://xxx.com/xxx";
+        String signedUrl = uploadService.getContent(fileId, userInfo.userId(), false);
 
         return ResponseEntity
                 .status(HttpStatus.FOUND) // 302

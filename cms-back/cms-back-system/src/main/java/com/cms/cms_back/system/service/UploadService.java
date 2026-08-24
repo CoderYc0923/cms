@@ -15,7 +15,7 @@ public interface UploadService {
 
     CompleteUploadVO complete(Long fileId, CompleteUploadDTO completeUploadDTO, Long userId);
 
-    Void abort(Long fileId, Long userId);
+    void abort(Long fileId, Long userId);
 
-    String getContent(Long fileId, Long userId);
+    String getContent(Long fileId, Long userId, boolean isPublic);
 }

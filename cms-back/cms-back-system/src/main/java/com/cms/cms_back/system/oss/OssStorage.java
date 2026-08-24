@@ -5,6 +5,14 @@ import java.util.List;
 public interface OssStorage {
 
     /**
+     * 预签名获取
+     * @param objectKey
+     * @param expireSeconds
+     * @return
+     */
+    String presignGet(String objectKey, long expireSeconds);
+
+    /**
      * 预签名上传
      * 
      * @param objectKey
@@ -50,5 +58,18 @@ public interface OssStorage {
      * @return
      */
     String completeMultipart(String objectKey, String uploadId, List<OssUploadPart> parts);
+
+    /**
+     * 取消分片上传
+     * @param objectKey
+     * @param uploadId
+     */
+    void abortMultipart(String objectKey, String uploadId);
+
+    /**
+     * 删除对象（单文件上传abort时清理已经put的对象）
+     * @param objectKey
+     */
+    void deleteObject(String objectKey);
 
 }

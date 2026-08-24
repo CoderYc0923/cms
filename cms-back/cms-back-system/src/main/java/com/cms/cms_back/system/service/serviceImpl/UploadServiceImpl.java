@@ -1,8 +1,6 @@
 package com.cms.cms_back.system.service.serviceImpl;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -80,6 +78,7 @@ public class UploadServiceImpl implements UploadService {
         boolean isMultiPart = initUploadDTO.getSizeBytes() >= ossProperties.getMultipartThresholdBytes();
 
         MediaFiles mediaFile = new MediaFiles();
+        mediaFile.setOriginalName(initUploadDTO.getFileName());
         mediaFile.setObjectKey(objectKey);
         mediaFile.setBizType(bizType);
         mediaFile.setContentType(initUploadDTO.getContentType());
@@ -88,19 +87,17 @@ public class UploadServiceImpl implements UploadService {
         mediaFile.setCreatedBy(userId);
         mediaFile.setStatus(MediaFilesStatus.UPLOADING);
         mediaFile.setAccessLevel(MediaFilesAccessLevelType.PRIVATE);
-        mediaFilesMapper.insert(mediaFile);
 
         try {
             InitUploadVO vo = toInitVO(mediaFile, isMultiPart);
-            if (isMultiPart) {
-                mediaFile.setUploadId(vo.getUploadId());
-                mediaFilesMapper.updateById(mediaFile);
-            }
+
             log.info("初始化上传成功，fileId: {}, mode: {}, userId: {}", mediaFile.getId(), vo.getMode(), userId);
             return vo;
         } catch (BizException e) {
+            cleanupInitOnOss(objectKey, mediaFile.getUploadId());
             throw e;
         } catch (Exception e) {
+            cleanupInitOnOss(objectKey, mediaFile.getUploadId());
             log.error("初始化上传失败，fileId: {}, objectKey: {}, userId: {}", mediaFile.getId(), mediaFile.getObjectKey(),
                     userId, e);
             throw BizException.of(ErrorCode.INTERNAL_ERROR, "初始化上传失败");
@@ -149,6 +146,7 @@ public class UploadServiceImpl implements UploadService {
      * 完成上传
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public CompleteUploadVO complete(Long fileId, CompleteUploadDTO completeUploadDTO, Long userId) {
         MediaFiles mediaFiles = validateCompleteUploadFile(fileId, userId);
 
@@ -176,7 +174,7 @@ public class UploadServiceImpl implements UploadService {
             throw e;
         } catch (Exception e) {
             log.error("完成上传操作失败，fileId: {}, userId: {}, objectKey: {}", fileId, userId, mediaFiles.getObjectKey(), e);
-            throw BizException.of(ErrorCode.INTERNAL_ERROR, "完成上传操作失败，fileId");
+            throw BizException.of(ErrorCode.INTERNAL_ERROR, "完成上传操作失败");
         }
 
     }
@@ -185,16 +183,58 @@ public class UploadServiceImpl implements UploadService {
      * 取消上传
      */
     @Override
-    public Void abort(Long fileId, Long userId) {
-        return null;
+    public void abort(Long fileId, Long userId) {
+        MediaFiles mediaFiles = validateCompleteUploadFile(fileId, userId);
+        if (mediaFiles.getStatus() == MediaFilesStatus.READY) {
+            throw BizException.badRequest("文件已上传完成，请勿重复取消上传");
+        }
+
+        abortUpload(mediaFiles, userId);
     }
 
     /**
      * 获取文件内容
      */
     @Override
-    public String getContent(Long fileId, Long userId) {
-        return null;
+    public String getContent(Long fileId, Long userId, boolean isPublic) {
+        if (!isPublic && userId == null) {
+            throw BizException.badRequest("用户ID不能为空");
+        }
+
+        MediaFiles mediaFiles = validateReadyUploadFile(fileId, isPublic);
+        return generatePresignContentUrl(mediaFiles);
+    }
+
+    /**
+     * 取消上传
+     * 
+     * @param mediaFiles
+     * @param userId
+     */
+    private void abortUpload(MediaFiles mediaFiles, Long userId) {
+        try {
+            if (isMultiPartUpload(mediaFiles)) {
+                /** 分片上传已经上传的部分需要取消 */
+                ossStorage.abortMultipart(mediaFiles.getObjectKey(), mediaFiles.getUploadId());
+            } else {
+                /** 单文件上传取消时可能已经put到OSS了，尝试删除一下 */
+                ossStorage.deleteObject(mediaFiles.getObjectKey());
+            }
+
+            mediaFiles.setStatus(MediaFilesStatus.FAILED);
+            mediaFiles.setUploadId(null);
+            mediaFiles.setEtag(null);
+
+            mediaFilesMapper.updateById(mediaFiles);
+            log.info("取消上传成功，fileId: {}, userId: {}, objectKey: {}", mediaFiles.getId(), userId,
+                    mediaFiles.getObjectKey());
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("取消上传失败，fileId: {}, userId: {}, objectKey: {}", mediaFiles.getId(), userId,
+                    mediaFiles.getObjectKey(), e);
+            throw BizException.of(ErrorCode.INTERNAL_ERROR, "取消上传失败");
+        }
     }
 
     /**
@@ -230,6 +270,32 @@ public class UploadServiceImpl implements UploadService {
         OssObjectMeta metaDMeta = ossStorage.head(mediaFiles.getObjectKey());
         mediaFiles.setEtag(metaDMeta.etag());
         mediaFiles.setSizeBytes(metaDMeta.sizeBytes());
+    }
+
+    /**
+     * 验证上传文件是否准备就绪
+     * 
+     * @param fileId
+     * @param isPublic
+     * @return
+     */
+    private MediaFiles validateReadyUploadFile(Long fileId, boolean isPublic) {
+        if (fileId == null || fileId <= 0) {
+            throw BizException.badRequest("文件ID无效");
+        }
+
+        MediaFiles mediaFile = mediaFilesMapper.selectById(fileId);
+        if (mediaFile == null) {
+            throw BizException.notFound("文件不存在");
+        }
+        if (mediaFile.getStatus() != MediaFilesStatus.READY) {
+            throw BizException.notFound("文件不存在");
+        }
+        if (isPublic && mediaFile.getAccessLevel() != MediaFilesAccessLevelType.PUBLIC) {
+            throw BizException.badRequest("文件不存在");
+        }
+
+        return mediaFile;
     }
 
     /**
@@ -365,6 +431,25 @@ public class UploadServiceImpl implements UploadService {
     }
 
     /**
+     * 生成预签名获取URL
+     * 
+     * @param mediaFiles
+     * @return
+     */
+    private String generatePresignContentUrl(MediaFiles mediaFiles) {
+        try {
+            String url = ossStorage.presignGet(mediaFiles.getObjectKey(), ossProperties.getSignedGetExpireSeconds());
+            return url;
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("生成预签名获取URL失败，fileId: {}, userId: {}, objectKey: {}", mediaFiles.getId(),
+                    mediaFiles.getCreatedBy(), mediaFiles.getObjectKey(), e);
+            throw BizException.of(ErrorCode.INTERNAL_ERROR, "生成预签名获取URL失败");
+        }
+    }
+
+    /**
      * 生成上传URL
      * 
      * @param mediaFile
@@ -399,13 +484,28 @@ public class UploadServiceImpl implements UploadService {
         return String.format(OSS_STABLE_URL_TEMPLATE, fileId);
     }
 
+    /**
+     * 初始化上传失败清理已上传的部分
+     * @param objectKey
+     * @param uploadId
+     */
+    private void cleanupInitOnOss(String objectKey, String uploadId) {
+        if (uploadId == null)
+            return;
+
+        try {
+            ossStorage.abortMultipart(objectKey, uploadId);
+        } catch (Exception e) {
+            log.warn("init 失败补偿 abortMultipart 失败，objectKey: {}, uploadId: {}", objectKey, uploadId, e);
+        }
+    }
+
     private InitUploadVO toInitVO(MediaFiles mediaFile, boolean isMultiPart) {
         if (mediaFile == null) {
             throw BizException.badRequest("文件不存在");
         }
 
         InitUploadVO vo = InitUploadVO.builder()
-                .fileId(mediaFile.getId())
                 .mode(isMultiPart ? UploadModeType.MULTIPART : UploadModeType.SINGLE)
                 .build();
 
@@ -426,6 +526,10 @@ public class UploadServiceImpl implements UploadService {
             vo.setHeaders(headers);
         }
 
+        mediaFile.setUploadId(vo.getUploadId());
+        mediaFilesMapper.insert(mediaFile);
+        vo.setFileId(mediaFile.getId());
+
         return vo;
     }
 
@@ -437,15 +541,16 @@ public class UploadServiceImpl implements UploadService {
 
     private SignPartsVO toSignPartsVO(MediaFiles mediaFiles, SignPartsDTO signPartsDTO) {
         List<SignPartVO> signdParts = signPartsDTO.getPartNumbers().stream()
-            .map(p -> {
-                String putUrl = ossStorage.presignUploadPart(mediaFiles.getObjectKey(), mediaFiles.getUploadId(), p, ossProperties.getSignedPutExpireSeconds());
-                SignPartVO vo = new SignPartVO();
-                vo.setPartNumber(p);
-                vo.setPutUrl(putUrl);
-                return vo;
-            })
-            .collect(Collectors.toList());
-            
+                .map(p -> {
+                    String putUrl = ossStorage.presignUploadPart(mediaFiles.getObjectKey(), mediaFiles.getUploadId(), p,
+                            ossProperties.getSignedPutExpireSeconds());
+                    SignPartVO vo = new SignPartVO();
+                    vo.setPartNumber(p);
+                    vo.setPutUrl(putUrl);
+                    return vo;
+                })
+                .collect(Collectors.toList());
+
         return SignPartsVO.builder().parts(signdParts).build();
     }
 }
