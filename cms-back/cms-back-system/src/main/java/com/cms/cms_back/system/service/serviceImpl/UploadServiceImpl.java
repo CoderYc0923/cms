@@ -23,6 +23,7 @@ import com.cms.cms_back.system.oss.OssStorage;
 import com.cms.cms_back.system.oss.OssUploadPart;
 import com.cms.cms_back.system.service.UploadService;
 import com.cms.cms_back.pojo.vo.upload.InitUploadVO;
+import com.cms.cms_back.pojo.vo.upload.SignPartVO;
 import com.cms.cms_back.pojo.dto.upload.InitUploadDTO;
 import com.cms.cms_back.pojo.vo.upload.SignPartsVO;
 import com.cms.cms_back.pojo.dto.upload.SignPartsDTO;
@@ -87,13 +88,14 @@ public class UploadServiceImpl implements UploadService {
         mediaFile.setCreatedBy(userId);
         mediaFile.setStatus(MediaFilesStatus.UPLOADING);
         mediaFile.setAccessLevel(MediaFilesAccessLevelType.PRIVATE);
+        mediaFilesMapper.insert(mediaFile);
 
         try {
             InitUploadVO vo = toInitVO(mediaFile, isMultiPart);
             if (isMultiPart) {
                 mediaFile.setUploadId(vo.getUploadId());
+                mediaFilesMapper.updateById(mediaFile);
             }
-            mediaFilesMapper.insert(mediaFile);
             log.info("初始化上传成功，fileId: {}, mode: {}, userId: {}", mediaFile.getId(), vo.getMode(), userId);
             return vo;
         } catch (BizException e) {
@@ -110,8 +112,37 @@ public class UploadServiceImpl implements UploadService {
      * 签发分片
      */
     @Override
-    public SignPartsVO signParts(Long fileId, SignPartsDTO signPartsDTO) {
-        return null;
+    public SignPartsVO signParts(Long fileId, SignPartsDTO signPartsDTO, Long userId) {
+        MediaFiles mediaFiles = validateCompleteUploadFile(fileId, userId);
+        if (mediaFiles.getStatus() == MediaFilesStatus.READY) {
+            throw BizException.badRequest("文件已上传完成，请勿重复签发分片");
+        }
+
+        if (!isMultiPartUpload(mediaFiles)) {
+            throw BizException.badRequest("文件不是分片上传，请勿签发分片");
+        }
+
+        if (signPartsDTO == null || signPartsDTO.getPartNumbers() == null || signPartsDTO.getPartNumbers().isEmpty()) {
+            throw BizException.badRequest("分片号不能为空");
+        }
+
+        long partSize = ossProperties.getMultipartPartSizeBytes();
+        int partCount = (int) Math.ceil((double) mediaFiles.getSizeBytes() / partSize);
+
+        Set<Integer> seen = new HashSet<>();
+        for (Integer partNumber : signPartsDTO.getPartNumbers()) {
+            if (partNumber == null || partNumber < 1 || partNumber > partCount) {
+                throw BizException.badRequest("分片号无效");
+            }
+            if (seen.contains(partNumber)) {
+                throw BizException.badRequest("分片号重复");
+            }
+            seen.add(partNumber);
+        }
+
+        SignPartsVO vo = toSignPartsVO(mediaFiles, signPartsDTO);
+
+        return vo;
     }
 
     /**
@@ -154,7 +185,7 @@ public class UploadServiceImpl implements UploadService {
      * 取消上传
      */
     @Override
-    public Void abort(Long fileId) {
+    public Void abort(Long fileId, Long userId) {
         return null;
     }
 
@@ -162,7 +193,7 @@ public class UploadServiceImpl implements UploadService {
      * 获取文件内容
      */
     @Override
-    public String getContent(Long fileId) {
+    public String getContent(Long fileId, Long userId) {
         return null;
     }
 
@@ -402,5 +433,19 @@ public class UploadServiceImpl implements UploadService {
         return CompleteUploadVO.builder()
                 .stableUrl(generateStableUrl(mediaFiles.getId()))
                 .build();
+    }
+
+    private SignPartsVO toSignPartsVO(MediaFiles mediaFiles, SignPartsDTO signPartsDTO) {
+        List<SignPartVO> signdParts = signPartsDTO.getPartNumbers().stream()
+            .map(p -> {
+                String putUrl = ossStorage.presignUploadPart(mediaFiles.getObjectKey(), mediaFiles.getUploadId(), p, ossProperties.getSignedPutExpireSeconds());
+                SignPartVO vo = new SignPartVO();
+                vo.setPartNumber(p);
+                vo.setPutUrl(putUrl);
+                return vo;
+            })
+            .collect(Collectors.toList());
+            
+        return SignPartsVO.builder().parts(signdParts).build();
     }
 }

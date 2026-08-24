@@ -60,8 +60,10 @@ public class AdminUploadController {
      * @return
      */
     @PostMapping("/uploads/{fileId}/parts/sign")
-    public ApiResult<SignPartsVO> signParts(@PathVariable Long fileId, @Valid @RequestBody SignPartsDTO signPartsDTO) {
-        return ApiResult.success(null);
+    public ApiResult<SignPartsVO> signParts(@PathVariable Long fileId, @Valid @RequestBody SignPartsDTO signPartsDTO, @AuthenticationPrincipal UserInfo userInfo) {
+        
+        SignPartsVO vo = uploadService.signParts(fileId, signPartsDTO, userInfo.userId());
+        return ApiResult.success(vo);
     }
 
     /**
@@ -82,7 +84,7 @@ public class AdminUploadController {
      * @return
      */
     @PostMapping("/uploads/{fileId}/abort")
-    public ApiResult<Void> abort(@PathVariable Long fileId) {
+    public ApiResult<Void> abort(@PathVariable Long fileId, @AuthenticationPrincipal UserInfo userInfo) {
         return ApiResult.success(null);
     }
 
@@ -92,7 +94,7 @@ public class AdminUploadController {
      * @return 返回302重定向到OSS 的短时签名 URL
      */
     @GetMapping("/{fileId}/content")
-    public ResponseEntity<Void> getContent(@PathVariable Long fileId) {
+    public ResponseEntity<Void> getContent(@PathVariable Long fileId, @AuthenticationPrincipal UserInfo userInfo) {
 
         String signedUrl = "https://xxx.com/xxx";
 

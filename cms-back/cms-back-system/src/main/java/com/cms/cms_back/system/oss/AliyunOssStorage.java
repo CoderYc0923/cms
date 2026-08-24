@@ -31,17 +31,17 @@ public class AliyunOssStorage implements OssStorage {
 
     /**
      * 生成上传URL
-     * @param ObjectKey
+     * @param objectKey
      * @param contentType
      * @param expireSeconds
      * @return
      */
     @Override
-    public String presignPut(String ObjectKey, String contentType, long expireSeconds) {
+    public String presignPut(String objectKey, String contentType, long expireSeconds) {
         Date expiration = new Date(System.currentTimeMillis() + expireSeconds * 1000L);
 
         /** 生成预签名请求 */
-        GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(ossProperties.getBucket(), ObjectKey, HttpMethod.PUT);
+        GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(ossProperties.getBucket(), objectKey, HttpMethod.PUT);
         request.setExpiration(expiration);
         request.setContentType(contentType);
 
@@ -50,18 +50,40 @@ public class AliyunOssStorage implements OssStorage {
     }
 
     /**
+     * 生成分片预签名上传URL
+     * @param objectKey
+     * @param uploadId
+     * @param partNumber
+     * @param expireSeconds
+     * @return
+     */
+    @Override
+    public String presignUploadPart(String objectKey, String uploadId, int partNumber, long expireSeconds) {
+        Date expiration = new Date(System.currentTimeMillis() + expireSeconds * 1000L);
+
+        GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(ossProperties.getBucket(), objectKey, HttpMethod.PUT);
+
+        request.setExpiration(expiration);
+        /* 添加分片上传ID和分片序号query参数 */
+        request.addQueryParameter("uploadId", uploadId);
+        request.addQueryParameter("partNumber", String.valueOf(partNumber));
+
+        return ossClient.generatePresignedUrl(request).toString();
+    }
+
+    /**
      * 初始化分片上传
-     * @param ObjectKey
+     * @param objectKey
      * @param contentType
      * @return
      */
     @Override
-    public String initialMultipart(String ObjectKey, String contentType) {
+    public String initialMultipart(String objectKey, String contentType) {
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentType(contentType);
 
         /** 初始化分片上传请求 */
-        InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(ossProperties.getBucket(), ObjectKey, metadata);
+        InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(ossProperties.getBucket(), objectKey, metadata);
         InitiateMultipartUploadResult result = ossClient.initiateMultipartUpload(request);
         
         return result.getUploadId();
@@ -71,9 +93,9 @@ public class AliyunOssStorage implements OssStorage {
      * 确认对象已上传
      */
     @Override
-    public OssObjectMeta head(String ObjectKey) {
+    public OssObjectMeta head(String objectKey) {
         /** 获取对象元数据 */
-        ObjectMetadata metadata = ossClient.getObjectMetadata(ossProperties.getBucket(), ObjectKey);
+        ObjectMetadata metadata = ossClient.getObjectMetadata(ossProperties.getBucket(), objectKey);
         return new OssObjectMeta(metadata.getETag(), metadata.getContentLength());
     }
 

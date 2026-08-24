@@ -6,35 +6,49 @@ public interface OssStorage {
 
     /**
      * 预签名上传
-     * @param ObjectKey
+     * 
+     * @param objectKey
      * @param contentType
      * @param expireSeconds
      * @return
      */
-    String presignPut(String ObjectKey, String contentType, long expireSeconds);
+    String presignPut(String objectKey, String contentType, long expireSeconds);
+
+    /**
+     * 分片预签名上传
+     * @param objectKey
+     * @param uploadId
+     * @param partNumber
+     * @param expireSeconds
+     * @return
+     */
+    String presignUploadPart(String objectKey, String uploadId, int partNumber, long expireSeconds);
 
     /**
      * 初始化分片上传
-     * @param ObjectKey
+     * 
+     * @param objectKey
      * @param contentType
      * @return
      */
-    String initialMultipart(String ObjectKey, String contentType);
+    String initialMultipart(String objectKey, String contentType);
 
     /**
      * 确认对象已上传
-     * @param ObjectKey
+     * 
+     * @param objectKey
      * @return
      */
-    OssObjectMeta head(String ObjectKey);
+    OssObjectMeta head(String objectKey);
 
     /**
      * 完成分片上传
-     * @param ObjectKey
+     * 
+     * @param objectKey
      * @param uploadId
      * @param parts
      * @return
      */
-    String completeMultipart(String ObjectKey, String uploadId, List<OssUploadPart> parts);
+    String completeMultipart(String objectKey, String uploadId, List<OssUploadPart> parts);
 
 }

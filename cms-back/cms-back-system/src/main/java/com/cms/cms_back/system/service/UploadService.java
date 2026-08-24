@@ -11,11 +11,11 @@ public interface UploadService {
 
     InitUploadVO init(InitUploadDTO initUploadDTO, Long userId);
 
-    SignPartsVO signParts(Long fileId, SignPartsDTO signPartsDTO);
+    SignPartsVO signParts(Long fileId, SignPartsDTO signPartsDTO, Long userId);
 
     CompleteUploadVO complete(Long fileId, CompleteUploadDTO completeUploadDTO, Long userId);
 
-    Void abort(Long fileId);
+    Void abort(Long fileId, Long userId);
 
-    String getContent(Long fileId);
+    String getContent(Long fileId, Long userId);
 }
