@@ -1,0 +1,11 @@
+databaseChangeLog:
+    - changeSet:
+        id: 006-add-article-media-refs-table
+        author: Cyrus
+        comment: 添加文章媒体引用表
+        changes:
+          - sqlFile:
+              path: db/changelog/changes/006-add-article-media-refs-table.sql
+              relativeToChangelogFile: false
+              splitStatements: true
+              stripComments: true

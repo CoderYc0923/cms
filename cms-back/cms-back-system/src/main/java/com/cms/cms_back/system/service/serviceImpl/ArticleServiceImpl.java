@@ -2,7 +2,9 @@ package com.cms.cms_back.system.service.serviceImpl;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
@@ -13,6 +15,7 @@ import com.cms.cms_back.system.mapper.ArticleMapper;
 import com.cms.cms_back.system.mapper.NodeMapper;
 import com.cms.cms_back.system.mapper.SpaceMapper;
 import com.cms.cms_back.system.mq.producers.PublishEventsProducer;
+import com.cms.cms_back.system.service.ArticleMediaRefService;
 import com.cms.cms_back.system.service.ArticleService;
 
 import tools.jackson.databind.ObjectMapper;
@@ -42,16 +45,18 @@ public class ArticleServiceImpl implements ArticleService {
     private final SpaceMapper spaceMapper;
     private final ObjectMapper objectMapper;
     private final PublishEventsProducer publishEventsProducer;
+    private final ArticleMediaRefService articleMediaRefService;
 
     private static final Logger log = LoggerFactory.getLogger(ArticleServiceImpl.class);
 
     public ArticleServiceImpl(ArticleMapper articleMapper, NodeMapper nodeMapper, SpaceMapper spaceMapper,
-            ObjectMapper objectMapper, PublishEventsProducer publishEventsProducer) {
+            ObjectMapper objectMapper, PublishEventsProducer publishEventsProducer, ArticleMediaRefService articleMediaRefService) {
         this.articleMapper = articleMapper;
         this.nodeMapper = nodeMapper;
         this.spaceMapper = spaceMapper;
         this.objectMapper = objectMapper;
         this.publishEventsProducer = publishEventsProducer;
+        this.articleMediaRefService = articleMediaRefService;
     }
 
     /**
@@ -98,6 +103,7 @@ public class ArticleServiceImpl implements ArticleService {
      * 创建文章
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void create(CreateArticleDTO dto, Long userId) {
         if (hasArticle(dto.getNodeId())) {
             throw new BizException(ErrorCode.BAD_REQUEST, "文章已存在");
@@ -118,6 +124,10 @@ public class ArticleServiceImpl implements ArticleService {
 
         try {
             articleMapper.insert(article);
+            if (article.getContent() != null && !article.getContent().isEmpty()) {
+                articleMediaRefService.syncRefsByContent(article.getId(), article.getSpaceId(), article.getContent());
+                articleMediaRefService.recomputeAccessLevelForArticle(article.getId());
+            }
         } catch (DuplicateKeyException e) {
             log.info("文章已存在, nodeId: {}", dto.getNodeId());
         }
@@ -133,8 +143,7 @@ public class ArticleServiceImpl implements ArticleService {
             throw new BizException(ErrorCode.BAD_REQUEST, "文章节点ID不能为空");
         }
 
-        Article article = getArticleByNodeId(nodeId);
-        if (article == null) {
+        if (!hasArticle(nodeId)) {
             throw new BizException(ErrorCode.BAD_REQUEST, "文章不存在");
         }
 
@@ -145,6 +154,12 @@ public class ArticleServiceImpl implements ArticleService {
 
         articleMapper.update(null, updateWrapper);
 
+        Article article = getArticleByNodeId(nodeId);
+
+        /** 同步引用关系 */
+        articleMediaRefService.syncRefsByContent(article.getId(), article.getSpaceId(), dto.getContent());
+
+        /** 改发布状态 */
         changeArticlePublishStatus(nodeId, PublishStatus.formCode(dto.getPublishStatus()), userId);
     }
 
@@ -152,6 +167,7 @@ public class ArticleServiceImpl implements ArticleService {
      * 删除文章
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void delete(Long nodeId) {
         if (nodeId == null || nodeId <= 0) {
             throw new BizException(ErrorCode.BAD_REQUEST, "文章节点ID不能为空");
@@ -169,6 +185,8 @@ public class ArticleServiceImpl implements ArticleService {
         articleMapper.update(null, new LambdaUpdateWrapper<Article>()
                 .eq(Article::getNodeId, nodeId)
                 .set(Article::getDeletedAt, LocalDateTime.now()));
+
+        articleMediaRefService.deleteRefsByArticleId(article.getId());
     }
 
     /**
@@ -178,6 +196,7 @@ public class ArticleServiceImpl implements ArticleService {
      * @param userId
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void publish(Long nodeId, Long userId) {
         changeArticlePublishStatus(nodeId, PublishStatus.PUBLISHED, userId);
     }
@@ -186,6 +205,7 @@ public class ArticleServiceImpl implements ArticleService {
      * 取消发布文章
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void unpublish(Long nodeId, Long userId) {
         changeArticlePublishStatus(nodeId, PublishStatus.DRAFT, userId);
     }
@@ -218,6 +238,9 @@ public class ArticleServiceImpl implements ArticleService {
                 .set(Article::getPublishStatus, publishStatus)
                 .set(Article::getPublishAt, publishAt)
                 .set(Article::getUpdatedBy, userId));
+
+        /** 发布状态改变时，重算该文章引用的所有文件 */
+        articleMediaRefService.recomputeAccessLevelForArticle(article.getId());
 
         sendPublishEvents(nodeId, publishStatus, isPublished, userId, article);
 

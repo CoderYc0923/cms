@@ -9,3 +9,5 @@ databaseChangeLog:
       file: db/changelog/changes/004-add-event-id-in-publish-events.yaml
   - include:
       file: db/changelog/changes/005-add-media-files-table.yaml
+  - include:
+      file: db/changelog/changes/006-add-article-media-refs-table.yaml
