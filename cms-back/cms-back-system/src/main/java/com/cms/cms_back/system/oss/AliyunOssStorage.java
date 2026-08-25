@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.aliyun.oss.HttpMethod;
-import com.aliyun.oss.OSSClient;
+import com.aliyun.oss.OSS;
 import com.aliyun.oss.model.AbortMultipartUploadRequest;
 import com.aliyun.oss.model.CompleteMultipartUploadRequest;
 import com.aliyun.oss.model.CompleteMultipartUploadResult;
@@ -23,9 +23,9 @@ import com.aliyun.oss.model.PartETag;
 public class AliyunOssStorage implements OssStorage {
 
     private final OssProperties ossProperties;
-    private final OSSClient ossClient;
+    private final OSS ossClient;
 
-    public AliyunOssStorage(OssProperties ossProperties, OSSClient ossClient) {
+    public AliyunOssStorage(OssProperties ossProperties, OSS ossClient) {
         this.ossClient = ossClient;
         this.ossProperties = ossProperties;
     }

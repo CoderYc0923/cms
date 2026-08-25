@@ -1,6 +1,8 @@
 spring:
   application:
     name: cms-back-admin
+  config:
+    import: optional:file:.env[.properties],optional:file:../.env[.properties]
   datasource:
     url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3307}/${DB_NAME:cms}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: ${DB_USERNAME:cms}

@@ -39,10 +39,10 @@ public class PublishEventsProducer {
     public void publish(PublishEventsMessage message) {
         try {
             rocketMQTemplate.convertAndSend(PublishEventsConstant.TOPIC, message);
-            log.info("发送发布事件消息成功，nodeId={}, articleId={}, eventType={}", message.getNodeId(), message.getArticleId(),
+            log.info("发送发布事件消息成功，nodeId={}, userId={}, eventType={}", message.getNodeId(), message.getUserId(),
                     message.getEventType());
         } catch (Exception e) {
-            log.error("发送发布事件消息失败，nodeId={}, articleId={}, eventType={}", message.getNodeId(), message.getArticleId(),
+            log.error("发送发布事件消息失败，nodeId={}, userId={}, eventType={}", message.getNodeId(), message.getUserId(),
                     message.getEventType(), e);
 
             throw e;

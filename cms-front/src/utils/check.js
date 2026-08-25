@@ -1,6 +1,6 @@
-import { ERROR_CODE_TO_LOGIN } from '@/consts/codeEnum'
+import { LOGIN_CODE_MAP, ERROR_CODE_TO_LOGIN } from '@/consts/codeEnum'
 import notification from 'ant-design-vue/es/notification'
-import { useUserStore } from '@/stores/user'
+import { redirectToLogin } from './authRedirect'
 
 const statusMessage = {
   200: '服务器成功返回请求的数据。',
@@ -37,7 +37,7 @@ export function checkStatus(response) {
     description: errortext
   })
   if (ERROR_CODE_TO_LOGIN.includes(status)) {
-    useUserStore().resetAuth()
+    redirectToLogin()
   }
 }
 
@@ -46,6 +46,10 @@ const codeMessage = {
 }
 
 export function checkCode(params) {
+  if (Object.values(LOGIN_CODE_MAP).includes(params?.code)) {
+    redirectToLogin()
+    return
+  }
   const errortext = codeMessage[params.code] || params.msg
   notification.error({
     message: '操作错误',

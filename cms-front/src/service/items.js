@@ -48,7 +48,7 @@ export async function getArticle (nodeId) {
 export async function saveArticle (nodeId, params) {
   return request(`/api/admin/articles/${nodeId}`, {
     method: 'PUT',
-    data: params
+    params
   })
 }
 

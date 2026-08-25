@@ -6,6 +6,7 @@ import { LOGIN_CODE_MAP } from '@/consts/codeEnum'
 import { getToken, getRefreshToken, setToken, setRefreshToken } from './token'
 import { useUserStore } from '@/stores/user'
 import { API_PREFIX } from '@/consts/const'
+import { redirectToLogin } from './authRedirect'
 
 const AUTH_SKIP_REFRESH = /\/api\/admin\/auth\/(login|refresh|logout)(?:\?|$)/
 
@@ -75,7 +76,7 @@ instance.interceptors.request.use(config => {
 
 instance.interceptors.response.use(response => {
   if (Object.values(LOGIN_CODE_MAP).includes(response.data?.code)) {
-    useUserStore().resetAuth()
+    redirectToLogin()
   }
   return response
 }, async error => {
@@ -86,7 +87,7 @@ instance.interceptors.response.use(response => {
     return Promise.reject(error)
   }
   if (config._retry) {
-    useUserStore().resetAuth()
+    redirectToLogin()
     return Promise.reject(error)
   }
   config._retry = true
@@ -99,7 +100,7 @@ instance.interceptors.response.use(response => {
     }
     return instance.request(config)
   } catch (e) {
-    useUserStore().resetAuth()
+    redirectToLogin()
     return Promise.reject(error)
   }
 })

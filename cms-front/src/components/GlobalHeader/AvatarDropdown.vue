@@ -18,9 +18,8 @@
       </template>
     </a-dropdown>
     <span v-else>
-      <a @click="handleOpenLoginModal">立即登录</a>
+      <a @click="handleGoLogin">立即登录</a>
     </span>
-    <LoginModal :visible="loginVisible" @update:visible="setLoginVisible" @ok="handleLogin" />
   </div>
 </template>
 
@@ -28,15 +27,13 @@
 import { ref } from "vue";
 import { ArrowLeftOutlined } from "@ant-design/icons-vue";
 import { useUserStore } from "@/stores/user";
-import { useRouter } from "vue-router";
-import LoginModal from "@/components/Login/modal.vue";
+import { useRoute, useRouter } from "vue-router";
 
 const global = useGlobalStore();
 const user = useUserStore();
 const router = useRouter();
+const route = useRoute();
 const userName = ref(JSON.parse(localStorage.getItem("userInfo"))?.username || "");
-
-const [loginVisible, setLoginVisible] = useState(false);
 
 const updateUserName = () => {
   userName.value = JSON.parse(localStorage.getItem("userInfo"))?.username || "";
@@ -49,18 +46,22 @@ const handleLogout = () => {
     onOk: () =>
       user.loginOut().then(() => {
         updateUserName();
+        router.replace({
+          path: "/login",
+          query: { redirect: route.fullPath }
+        });
       }),
     onCancel() {}
   });
 };
 
-const handleOpenLoginModal = () => {
-  setLoginVisible(true);
+const handleGoLogin = () => {
+  router.push({
+    path: "/login",
+    query: { redirect: route.fullPath }
+  });
 };
 
-const handleLogin = () => {
-  updateUserName();
-};
 </script>
 
 <style lang="less" scoped>

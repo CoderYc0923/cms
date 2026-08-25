@@ -180,8 +180,9 @@ import { message } from "ant-design-vue";
 import { addGroup, editGroup, deleteGroup, getGroupList } from "@/service/group";
 import { createItem, editItem } from "@/service/items";
 import { getPublicTree } from "@/shared/api/public";
-import { useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { useGlobalStore } from "@/stores/global";
+import { useUserStore } from "@/stores/user";
 
 const props = defineProps({
   readonly: {
@@ -195,7 +196,8 @@ const props = defineProps({
 });
 
 const global = useGlobalStore();
-const router = useRouter();
+const route = useRoute();
+const userStore = useUserStore();
 
 const [openKeys, setOpenKeys] = useState([]);
 const [selectedKeys, setSelectedKeys] = useState([]);
@@ -250,7 +252,8 @@ const handleClick = e => {
   emit("articleClick", {
     nodeId: node.id,
     title: node.title,
-    type: node.type
+    type: node.type,
+    sort: node.sort
   });
 };
 
@@ -375,17 +378,26 @@ const resolveSpaceSlug = () => {
   if (props.spaceSlug) {
     return props.spaceSlug;
   }
-  return router.currentRoute.value.path.split("/").pop();
+  const path = route.path.replace(/\/+$/, "");
+  return path.split("/").filter(Boolean).pop() || "";
+};
+
+const loadTree = (slug) => {
+  const spaceSlug = slug || resolveSpaceSlug();
+  if (!spaceSlug) {
+    return;
+  }
+  if (!props.readonly && !userStore.isLoggedIn) {
+    return;
+  }
+  setSource(spaceSlug);
+  getTree(spaceSlug);
 };
 
 watch(
-  () => (props.readonly ? props.spaceSlug : router.currentRoute.value.path),
+  () => [resolveSpaceSlug(), userStore.isLoggedIn, props.readonly],
   () => {
-    const s = resolveSpaceSlug();
-    if (s) {
-      setSource(s);
-      getTree(s);
-    }
+    loadTree();
   },
   { immediate: true }
 );

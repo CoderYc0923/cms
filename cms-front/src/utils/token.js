@@ -14,13 +14,15 @@ export function getToken () {
   return Cookies.get(ACCESS_TOKEN_KEY) || Cookies.get(LEGACY_TOKEN_KEY)
 }
 
+const COOKIE_PATH = '/'
+
 export function setToken (token) {
-  Cookies.set(ACCESS_TOKEN_KEY, token)
+  Cookies.set(ACCESS_TOKEN_KEY, token, { path: COOKIE_PATH })
 }
 
 export function clearToken () {
-  Cookies.remove(ACCESS_TOKEN_KEY)
-  Cookies.remove(LEGACY_TOKEN_KEY)
+  Cookies.remove(ACCESS_TOKEN_KEY, { path: COOKIE_PATH })
+  Cookies.remove(LEGACY_TOKEN_KEY, { path: COOKIE_PATH })
 }
 
 export function getRefreshToken () {
@@ -28,11 +30,11 @@ export function getRefreshToken () {
 }
 
 export function setRefreshToken (token) {
-  Cookies.set(REFRESH_TOKEN_KEY, token)
+  Cookies.set(REFRESH_TOKEN_KEY, token, { path: COOKIE_PATH })
 }
 
 export function clearRefreshToken () {
-  Cookies.remove(REFRESH_TOKEN_KEY)
+  Cookies.remove(REFRESH_TOKEN_KEY, { path: COOKIE_PATH })
 }
 
 export function getSession () {
@@ -40,9 +42,9 @@ export function getSession () {
 }
 
 export function setSession (session) {
-  Cookies.set(SESSION_STORAGE_KEY, session)
+  Cookies.set(SESSION_STORAGE_KEY, session, { path: COOKIE_PATH })
 }
 
 export function clearSession () {
-  Cookies.remove(SESSION_STORAGE_KEY)
+  Cookies.remove(SESSION_STORAGE_KEY, { path: COOKIE_PATH })
 }

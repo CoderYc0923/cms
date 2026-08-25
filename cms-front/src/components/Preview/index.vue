@@ -29,7 +29,12 @@
             type="primary"
             @click="handlePreview"
           >{{ status === ACTION_STATUS.PREVIEW ? '取消预览' : '预览' }}</a-button>
-          <a-button type="primary" class="no-first-btn" @click="handleSave">保存</a-button>
+          <a-button
+            type="primary"
+            class="no-first-btn"
+            :loading="saving"
+            @click="handleSave"
+          >保存</a-button>
           <a-button class="no-first-btn" @click="handleCancel">取消</a-button>
         </template>
       </div>
@@ -43,9 +48,13 @@
 <script setup>
 import Anchor from "@/components/Anchor/index.vue";
 import RichText from "@/components/RichText/index.vue";
+import { message } from "ant-design-vue";
 import { processHtmlForToc } from "@/utils/util";
 import { rewriteAdminFileUrls, toPublicFileUrl } from "@/utils/fileUrl";
+import { saveArticle, editItem } from "@/service/items";
 import { MENU_TYPE, MENU_TYPE_MSG, ACTION_STATUS } from "@/consts/enum";
+
+const EMPTY_EDITOR_HTML = "<p>请输入文章内容...</p>";
 
 const props = defineProps({
   content: {
@@ -71,8 +80,18 @@ const props = defineProps({
   spaceSlug: {
     type: String,
     default: ""
+  },
+  publishStatus: {
+    type: String,
+    default: "draft"
+  },
+  nodeSort: {
+    type: Number,
+    default: undefined
   }
 });
+
+const emit = defineEmits(["saved"]);
 
 const global = useGlobalStore();
 const contentRef = ref();
@@ -83,6 +102,7 @@ const [anchorItems, setAnchorItems] = useState([]);
 const [title, setTitle] = useState("");
 const [oldTitle, setOldTitle] = useState("");
 const [status, setStatus] = useState(ACTION_STATUS.SAVE);
+const [saving, setSaving] = useState(false);
 
 const handleInit = content => {
   const normalizedContent = props.readonly
@@ -110,10 +130,51 @@ const handleEdit = () => {
   setOldTitle(title.value);
 };
 
-const handleSave = () => {
-  handleUpdateContent();
-  hanldeClear();
-  setStatus(ACTION_STATUS.SAVE);
+const handleSave = async () => {
+  if (!props.nodeId) {
+    message.error("未选择文章");
+    return;
+  }
+
+  const rawHtml = richTextRef.value?.getRichTextHtml() || "";
+  const content = toPublicFileUrl(rawHtml.trim());
+
+  if (!content || content === EMPTY_EDITOR_HTML) {
+    message.warning("请输入文章内容");
+    return;
+  }
+
+  setSaving(true);
+  try {
+    await saveArticle(props.nodeId, {
+      content,
+      publishStatus: props.publishStatus || "draft"
+    });
+
+    if (
+      props.nodeSort != null &&
+      title.value !== oldTitle.value
+    ) {
+      await editItem(
+        {
+          title: title.value,
+          sort: props.nodeSort
+        },
+        props.nodeId
+      );
+    }
+
+    handleUpdateContent(content);
+    hanldeClear();
+    setStatus(ACTION_STATUS.SAVE);
+    message.success("保存成功");
+    emit("saved", { content, title: title.value });
+  } catch (error) {
+    console.error("save article failed", error);
+    message.error(error?.message || "保存失败");
+  } finally {
+    setSaving(false);
+  }
 };
 
 const handleCancel = () => {

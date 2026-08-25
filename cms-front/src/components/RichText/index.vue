@@ -71,11 +71,39 @@ const props = defineProps({
 
 const mode = "default"; // 或 'simple'
 const toolbarConfig = {
-  excludeKeys: ["fullScreen"],
+  excludeKeys: ["fullScreen", "insertImage"],
 };
 const editorConfig = {
   placeholder: "请输入文章内容...",
   MENU_CONF: {},
+  // 粘贴截图时走 OSS，避免 base64 直插（不会调后端）
+  customPaste: (editor, event) => {
+    const items = event.clipboardData?.items;
+    if (!items?.length) {
+      return true;
+    }
+    const imageItem = Array.from(items).find((item) =>
+      item.type?.startsWith("image/")
+    );
+    if (!imageItem) {
+      return true;
+    }
+    const file = imageItem.getAsFile();
+    if (!file) {
+      return true;
+    }
+    event.preventDefault();
+    handleOssUpload(
+      file,
+      (url, alt, href) => {
+        editor.dangerouslyInsertHtml(
+          `<img src="${url}" alt="${alt || ""}" href="${href || url}" />`
+        );
+      },
+      "image"
+    ).catch(() => {});
+    return false;
+  },
   hoverbarKeys: {
     image: {
       menuKeys: [
@@ -167,6 +195,7 @@ const handleOssUpload = async (file, insertFn, type) => {
   }
 };
 
+// wangEditor 要求在编辑器创建前完成 MENU_CONF 配置，创建后再赋值无效
 const initUpload = () => {
   editorConfig.MENU_CONF["uploadImage"] = {
     fieldName: `${props.id}-image`,
@@ -176,8 +205,8 @@ const initUpload = () => {
     maxNumberOfFiles: 100,
     // 选择文件时的类型限制，默认为 ['image/*'] 。如不想限制，则设置为 []
     allowedFileTypes: ["image/*"],
-    // 小于该值就插入 base64 格式（而不上传），默认为 0
-    base64LimitSize: 5 * 1024, // 5kb
+    // 一律走 OSS，不设 base64 直插（否则小图不会调接口）
+    base64LimitSize: 0,
     onError(file, err, res) {
       console.log(`${file.name} 上传出错`, err, res);
     },
@@ -203,6 +232,8 @@ const initUpload = () => {
   };
 };
 
+initUpload();
+
 const getRichTextHtml = () => {
   //const html = editorRef.value?.getHtml()
   return textContent.value;
@@ -210,7 +241,6 @@ const getRichTextHtml = () => {
 
 const handleCreated = (editor) => {
   editorRef.value = editor; // 记录 editor 实例，重要！
-  initUpload();
 };
 
 const handleChange = (editor) => {

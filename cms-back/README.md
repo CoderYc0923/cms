@@ -1,6 +1,5 @@
-# 本地
-mvn spring-boot:run -pl cms-back-admin "-Dspring-boot.run.profiles=local"
-
+# 本地（在 cms-back 目录执行；会自动加载同目录 .env）
+mvn spring-boot:run -pl cms-back-admin -am "-Dspring-boot.run.profiles=local"
 # 或 IDE Active profiles = local
 
 # 模拟生产日志格式

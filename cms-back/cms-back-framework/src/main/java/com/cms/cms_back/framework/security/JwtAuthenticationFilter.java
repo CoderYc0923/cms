@@ -15,6 +15,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -24,6 +25,9 @@ import jakarta.servlet.http.HttpServletResponse;
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final String ACCESS_TOKEN_COOKIE = "CMS_ACCESS_TOKEN";
+    private static final String LEGACY_TOKEN_COOKIE = "BACK_USERID";
 
     private final JwtService jwtService;
 
@@ -36,9 +40,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain chain) throws ServletException, IOException {
-        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
+        String token = resolveToken(request);
+        if (token != null) {
             try {
                 /* 解析并验证JWT,获取用户信息声明 */
                 JWTClaimsSet claims = jwtService.parseAndValidate(token);
@@ -65,5 +68,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         chain.doFilter(request, response);
+    }
+
+    /**
+     * 优先 Authorization Bearer；其次 Cookie（供 img 等同源资源请求鉴权）
+     */
+    private String resolveToken(HttpServletRequest request) {
+        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
+        for (Cookie cookie : cookies) {
+            String name = cookie.getName();
+            if (ACCESS_TOKEN_COOKIE.equals(name) || LEGACY_TOKEN_COOKIE.equals(name)) {
+                String value = cookie.getValue();
+                if (value != null && !value.isBlank()) {
+                    return value;
+                }
+            }
+        }
+        return null;
     }
 }

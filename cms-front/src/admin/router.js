@@ -3,6 +3,12 @@ import AdminLayout from '@/admin/layouts/AdminLayout.vue'
 
 const routes = [
   {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/admin/views/Login.vue'),
+    meta: { title: '登录' }
+  },
+  {
     path: '/',
     component: AdminLayout,
     redirect: '/shopchup',

@@ -35,10 +35,18 @@ function normalizeEtag (etag) {
 }
 
 function createProgressReporter (onProgress) {
+  let lastPercent = 0
   return (percent) => {
-    if (typeof onProgress === 'function') {
-      onProgress(Math.min(100, Math.max(0, Math.round(percent))))
+    if (typeof onProgress !== 'function') {
+      return
     }
+    const next = Math.min(100, Math.max(0, Math.round(percent)))
+    // 避免 sign 等阶段把进度条往回拉
+    if (next < lastPercent) {
+      return
+    }
+    lastPercent = next
+    onProgress(next)
   }
 }
 
@@ -105,15 +113,28 @@ function putToOss (url, body, { headers = {}, onPartProgress, signal, xhrRegistr
         return
       }
 
-      reject(new Error(`OSS 上传失败 (${xhr.status})`))
+      const ossHint = xhr.responseText
+        ? xhr.responseText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+        : ''
+      reject(new Error(
+        ossHint
+          ? `OSS 上传失败 (${xhr.status}): ${ossHint}`
+          : `OSS 上传失败 (${xhr.status})`
+      ))
     }
 
-    // 上传失败
+    // 上传失败（常见：桶未配 CORS，浏览器 status=0）
     xhr.onerror = () => {
       // 移除 abort 事件监听
       signal?.removeEventListener('abort', onSignalAbort)
       cleanup()
-      reject(signal?.aborted ? new UploadAbortError() : new Error('OSS 上传失败'))
+      if (signal?.aborted) {
+        reject(new UploadAbortError())
+        return
+      }
+      reject(new Error(
+        'OSS 跨域上传失败：请在阿里云 OSS 控制台为桶配置 CORS（来源含 http://localhost:5173，方法含 PUT、OPTIONS，ExposeHeader 含 ETag）'
+      ))
     }
 
     // 上传取消
@@ -179,8 +200,6 @@ async function uploadMultipart (init, file, report, context) {
       { length: endPart - startPart + 1 },
       (_, index) => startPart + index
     )
-
-    report(3)
 
     const signed = assertApiSuccess(
       await signParts(init.fileId, { partNumbers }),

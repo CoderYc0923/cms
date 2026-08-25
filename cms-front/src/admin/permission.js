@@ -1,32 +1,37 @@
-import { usePermissionStore } from '@/stores/permission.js'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
+import { getToken } from '@/utils/token'
 
 NProgress.configure({ showSpinner: false })
 
+const WHITE_LIST = ['/login', '/404']
+
 export function setupAdminPermission (router) {
-  router.beforeEach(async (to, from, next) => {
+  router.beforeEach((to, from, next) => {
     NProgress.start()
 
-    const permissionStore = usePermissionStore()
+    const token = getToken()
+    const isWhite = WHITE_LIST.includes(to.path)
 
-    if (!permissionStore.getInited) {
-      permissionStore.generateRoutes()
-      const addRoutes = permissionStore.getAddRoutes
-      addRoutes.forEach(route => {
-        router.addRoute(route)
-      })
-      const redirect = decodeURIComponent(from.query.redirect || to.path)
-      if (to.fullPath === redirect) {
-        next({ path: to.path })
-      } else {
-        next({ path: to.path, query: to.query })
+    if (token) {
+      if (to.path === '/login') {
+        const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : '/shopchup'
+        next(redirect.startsWith('/') && !redirect.startsWith('/login') ? redirect : '/shopchup')
+        return
       }
-    } else {
       next()
+      return
     }
 
-    NProgress.done()
+    if (isWhite) {
+      next()
+      return
+    }
+
+    next({
+      path: '/login',
+      query: { redirect: to.fullPath }
+    })
   })
 
   router.afterEach(() => {
