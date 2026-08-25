@@ -69,3 +69,24 @@ oss:
   max-video-bytes: 524288000 # 500M
   allowed-image-types: image/jpeg,image/png,image/gif,image/webp
   allowed-video-types: video/mp4,video/webm
+
+xxl:
+  job:
+    admin:
+      address: ${XXL_JOB_ADMIN_ADDRESS:http://127.0.0.1:8088/xxl-job-admin}
+    executor:
+      appname: cms-back-admin-executor
+      address: ""
+      ip: ""
+      port: ${XXL_JOB_EXECUTOR_PORT:9999}
+      logpath: ${XXL_JOB_LOG_PATH:./logs/xxl-job}
+      logretentiondays: 30 # 日志保留天数
+    accessToken: ${XXL_JOB_ACCESS_TOKEN:}
+
+cms:
+  media-cleanup:
+    enabled: true
+    batch-size: 200 # 每次处理文件数量
+    stale-uploading-after-hours: 24 # uploading超过24小时未完成的文件将被删除
+    orphan-ready-after-days: 7 # ready文件无引用超过七天
+    dry-run: true # true时只打印日志不删除文件

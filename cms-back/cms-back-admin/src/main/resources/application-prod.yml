@@ -17,3 +17,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+
+cms:
+  media-cleanup:
+    orphan-ready-after-days: 7
+    dry-run: false
