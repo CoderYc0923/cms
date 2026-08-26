@@ -2,6 +2,8 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 import AutoImport from 'unplugin-auto-import/vite'
+import Components from 'unplugin-vue-components/vite'
+import { AntDesignVueResolver } from 'unplugin-vue-components/resolvers'
 
 const resolveEntryHtml = (appTarget) =>
   appTarget === 'docs'
@@ -22,6 +24,9 @@ const mpaDevFallbackPlugin = (appTarget) => ({
       const url = req.url?.split('?')[0] ?? ''
       if (appTarget === 'docs' && (url === '/' || url === '/index.html')) {
         req.url = '/docs.html'
+      }
+      if (appTarget === 'admin' && url === '/') {
+        req.url = '/index.html'
       }
       next()
     })
@@ -50,6 +55,16 @@ export default defineConfig(({ mode, command }) => {
         },
         dts: './auto-imports.d.ts',
         dirs: ['./src/hooks', './src/stores']
+      }),
+      Components({
+        // 模板里的 a-xxx 按需解析；JS API（message 等）仍显式 import
+        resolvers: [
+          AntDesignVueResolver({
+            // ant-design-vue v4 为 CSS-in-JS，不要再拉 less 样式入口
+            importStyle: false
+          })
+        ],
+        dts: './components.d.ts'
       })
     ].filter(Boolean),
     resolve: {
@@ -75,7 +90,7 @@ export default defineConfig(({ mode, command }) => {
     },
     server: {
       host: '0.0.0.0',
-      open: isDev ? (appTarget === 'docs' ? '/docs.html' : '/') : false,
+      open: false,
       proxy: {
         '/api': {
           target: 'http://localhost:8080',

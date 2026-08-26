@@ -1,5 +1,4 @@
 import { createApp } from 'vue'
-import Antd from 'ant-design-vue'
 import { createPinia } from 'pinia'
 import infiniteScroll from 'vue3-infinite-scroll-better'
 import { components } from '@/components/index'
@@ -18,7 +17,6 @@ export function bootstrapApp ({ App, router, permission, registerGlobals = true 
   }
 
   app.use(pinia)
-  app.use(Antd)
   app.use(infiniteScroll)
 
   if (router) {
