@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cms.cms_back.system.mapper.MediaFilesMapper">
+
+    <!-- 查询上传超过指定时间未完成的文件 -->
+    <select id="selectStaleUploading" resultType="com.cms.cms_back.pojo.entity.MediaFiles">
+        SELECT id, object_key, upload_id, status, access_level, created_at
+        FROM media_files
+        WHERE status = 'uploading'
+            AND created_at &lt; #{deadline}
+        ORDER BY created_at ASC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 查询ready文件无引用超过指定天数将被删除的文件 -->
+    <select id="selectOrphanReadyPrivate" resultType="com.cms.cms_back.pojo.entity.MediaFiles">
+        SELECT mf.id, mf.object_key, mf.upload_id, mf.status, mf.access_level, mf.created_at
+        FROM media_files mf
+        WHERE mf.status = 'ready'
+            AND mf.access_level = 'private'
+            AND mf.created_at &lt; #{deadline}
+            AND NOT EXISTS (
+                SELECT 1
+                FROM article_media_refs r
+                WHERE r.file_id = mf.id
+            )
+        ORDER BY mf.created_at ASC
+        LIMIT #{limit}
+    </select>
+
+
+</mapper>

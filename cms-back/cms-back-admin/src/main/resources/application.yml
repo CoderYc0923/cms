@@ -75,7 +75,7 @@ oss:
 xxl:
   job:
     admin:
-      address: ${XXL_JOB_ADMIN_ADDRESS:http://127.0.0.1:8088/xxl-job-admin}
+      addresses: ${XXL_JOB_ADMIN_ADDRESSES:http://127.0.0.1:8088/xxl-job-admin}
     executor:
       appname: cms-back-admin-executor
       address: ""

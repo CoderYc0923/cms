@@ -1,8 +1,6 @@
 package com.cms.cms_back.admin.controllers.space;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -10,11 +8,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.cms.cms_back.common.api.ApiResult;
+import com.cms.cms_back.pojo.vo.space.SpaceVO;
+import com.cms.cms_back.pojo.dto.space.CreateSpaceDTO;
+import com.cms.cms_back.pojo.dto.space.UpdateSpaceDTO;
 import com.cms.cms_back.pojo.vo.space.SpaceNodeTreeVO;
 import com.cms.cms_back.system.service.SpaceService;
+
+import jakarta.validation.Valid;
 
 /**
  * 管理端 Space API 骨架。
@@ -30,18 +34,24 @@ public class AdminSpaceController {
     }
 
     @GetMapping
-    public ApiResult<List<Map<String, Object>>> list() {
-        return ApiResult.success(Collections.emptyList());
+    public ApiResult<List<SpaceVO>> list(@RequestParam(required = false) Integer status) {
+        List<SpaceVO> list = spaceService.getList(status);
+
+        return ApiResult.success(list);
     }
 
     @PostMapping
-    public ApiResult<Map<String, Object>> create(@RequestBody Map<String, Object> body) {
-        return ApiResult.success(Collections.emptyMap());
+    public ApiResult<Void> create(@Valid @RequestBody CreateSpaceDTO dto) {
+        spaceService.create(dto);
+
+        return ApiResult.success();
     }
 
     @PutMapping("/{id}")
-    public ApiResult<Map<String, Object>> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        return ApiResult.success(Collections.emptyMap());
+    public ApiResult<Void> update(@PathVariable Long id, @Valid @RequestBody UpdateSpaceDTO dto) {
+        spaceService.update(id, dto);
+
+        return ApiResult.success();
     }
 
     /** 完整目录树（含草稿），slug 对应前端原 source，如 shopchup / iot */

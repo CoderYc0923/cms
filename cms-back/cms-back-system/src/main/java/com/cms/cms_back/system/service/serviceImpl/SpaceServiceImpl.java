@@ -4,16 +4,22 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.cms.cms_back.common.exception.BizException;
 import com.cms.cms_back.common.exception.ErrorCode;
+import com.cms.cms_back.pojo.dto.space.CreateSpaceDTO;
+import com.cms.cms_back.pojo.dto.space.UpdateSpaceDTO;
 import com.cms.cms_back.pojo.entity.Node;
 import com.cms.cms_back.pojo.entity.Space;
 import com.cms.cms_back.pojo.enums.NodeStatus;
+import com.cms.cms_back.pojo.enums.SpaceStatus;
+import com.cms.cms_back.pojo.vo.space.SpaceVO;
 import com.cms.cms_back.pojo.vo.space.SpaceNodeTreeVO;
 import com.cms.cms_back.system.mapper.NodeMapper;
 import com.cms.cms_back.system.mapper.SpaceMapper;
@@ -34,12 +40,94 @@ public class SpaceServiceImpl implements SpaceService {
     public List<SpaceNodeTreeVO> getTree(String slug) {
 
         // 找到slug对应所有的node
-        List<Node> nodeList = getNodesBySlug(slug);
+        List<Node> nodeList = getNodesBySlug(slug, false);
 
         // 将node转化成树形
         List<SpaceNodeTreeVO> tree = transferList2Tree(nodeList);
 
         return tree;
+    }
+
+    @Override
+    public List<SpaceNodeTreeVO> getPublicTree(String slug) {
+        // 找到slug对应所有的node
+        List<Node> nodeList = getNodesBySlug(slug, true);
+
+        // 将node转化成树形
+        List<SpaceNodeTreeVO> tree = transferList2Tree(nodeList);
+
+        return tree;
+    }
+
+    @Override
+    public List<SpaceVO> getList(Integer status) {
+
+        boolean filterByStatus = status != null;
+
+        LambdaQueryWrapper<Space> wrapper = new LambdaQueryWrapper<Space>()
+                .orderByAsc(Space::getSort, Space::getCreatedAt);
+
+        if (filterByStatus) {
+            wrapper.eq(Space::getStatus, SpaceStatus.formCode(status));
+        }
+
+        List<Space> spaceList = spaceMapper.selectList(wrapper);
+
+        return spaceList.stream().map(s -> (SpaceVO.builder()
+                .id(s.getId())
+                .name(s.getName())
+                .slug(s.getSlug())
+                .description(s.getDescription())
+                .sort(s.getSort())
+                .status(s.getStatus().getCode())
+                .build()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public void create(CreateSpaceDTO dto) {
+        if (dto == null) {
+            throw BizException.badRequest("空间创建参数不能为空");
+        }
+
+        if (getSpaceBySlug(dto.getSlug()) != null) {
+            throw BizException.badRequest("空间slug已存在");
+        }
+
+        Space space = new Space();
+        space.setName(dto.getName());
+        space.setSlug(dto.getSlug());
+        space.setDescription(dto.getDescription());
+        space.setSort(dto.getSort());
+        space.setStatus(SpaceStatus.ENABLED);
+
+        spaceMapper.insert(space);
+    }
+
+    @Override
+    public void update(Long id, UpdateSpaceDTO dto) {
+        Space space = getSpaceById(id);
+        if (space == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "空间不存在");
+        }
+
+        if (dto == null) {
+            throw BizException.badRequest("空间更新参数不能为空");
+        }
+
+        SpaceStatus status = SpaceStatus.formCode(dto.getStatus());
+        if (status == null) {
+            throw BizException.badRequest("空间状态不合法");
+        }
+
+        spaceMapper.update(null,
+            new LambdaUpdateWrapper<Space>()
+                .eq(Space::getId, id)
+                .set(Space::getName, dto.getName())
+                .set(Space::getDescription, dto.getDescription())
+                .set(Space::getSort, dto.getSort())
+                .set(Space::getStatus, SpaceStatus.formCode(dto.getStatus()))
+        );
     }
 
     /**
@@ -109,17 +197,21 @@ public class SpaceServiceImpl implements SpaceService {
      * @param slug
      * @return
      */
-    private List<Node> getNodesBySlug(String slug) {
+    private List<Node> getNodesBySlug(String slug, boolean onlyPublic) {
         Space space = getSpaceBySlug(slug);
         if (space == null) {
             throw new BizException(ErrorCode.BAD_REQUEST, "空间不存在");
         }
 
-        return nodeMapper.selectList(
-                new LambdaQueryWrapper<Node>()
-                        .eq(Node::getSpaceId, space.getId())
-                        .isNull(Node::getDeletedAt)
-                        .orderByAsc(Node::getSort, Node::getCreatedAt));
+        LambdaQueryWrapper<Node> wrapper = new LambdaQueryWrapper<Node>()
+                .eq(Node::getSpaceId, space.getId())
+                .isNull(Node::getDeletedAt)
+                .orderByAsc(Node::getSort, Node::getCreatedAt);
+        if (onlyPublic) {
+            wrapper.eq(Node::getStatus, NodeStatus.VISIBLE);
+        }
+
+        return nodeMapper.selectList(wrapper);
 
     }
 
@@ -137,6 +229,14 @@ public class SpaceServiceImpl implements SpaceService {
         return spaceMapper.selectOne(
                 new LambdaQueryWrapper<Space>()
                         .eq(Space::getSlug, slug));
+    }
+
+    private Space getSpaceById(Long id) {
+        if (id == null || id <= 0) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "空间ID不能为空");
+        }
+
+        return spaceMapper.selectById(id);
     }
 
 }

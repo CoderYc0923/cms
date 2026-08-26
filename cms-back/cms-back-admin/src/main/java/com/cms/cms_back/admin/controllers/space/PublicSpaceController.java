@@ -31,7 +31,7 @@ public class PublicSpaceController {
 
     @GetMapping("/{slug}/tree")
     public ApiResult<List<SpaceNodeTreeVO>> getTree(@PathVariable String slug) {
-        List<SpaceNodeTreeVO> tree = spaceService.getTree(slug);
+        List<SpaceNodeTreeVO> tree = spaceService.getPublicTree(slug);
         return ApiResult.success(tree);
     }
 

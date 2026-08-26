@@ -9,11 +9,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.cms.cms_back.common.exception.BizException;
 import com.cms.cms_back.common.exception.ErrorCode;
-import com.cms.cms_back.pojo.dto.article.CreateArticleDTO;
 import com.cms.cms_back.pojo.dto.mq.ArticleNodeMessage;
 import com.cms.cms_back.pojo.dto.node.CreateNodeDTO;
 import com.cms.cms_back.pojo.dto.node.UpdateNodeDTO;
-import com.cms.cms_back.pojo.entity.Article;
 import com.cms.cms_back.pojo.entity.Node;
 import com.cms.cms_back.pojo.entity.Space;
 import com.cms.cms_back.pojo.enums.NodeStatus;
@@ -32,7 +30,8 @@ public class NodeServiceImpl implements NodeService {
     private final ArticleService articleService;
     private final CreateArticleNodeProducer createArticleNodeProducer;
 
-    public NodeServiceImpl(NodeMapper nodeMapper, SpaceMapper spaceMapper, ArticleService articleService, CreateArticleNodeProducer createArticleNodeProducer) {
+    public NodeServiceImpl(NodeMapper nodeMapper, SpaceMapper spaceMapper, ArticleService articleService,
+            CreateArticleNodeProducer createArticleNodeProducer) {
         this.spaceMapper = spaceMapper;
         this.nodeMapper = nodeMapper;
         this.articleService = articleService;
@@ -64,13 +63,15 @@ public class NodeServiceImpl implements NodeService {
             node.setSort(dto.getSort());
         }
 
-        node.setStatus(NodeStatus.VISIBLE);
+        boolean isArticle = node.getType() == NodeType.ARTICLE;
+
+        /** 文章节点创建时默认隐藏 */
+        NodeStatus status = isArticle ? NodeStatus.HIDDEN : NodeStatus.VISIBLE;
+        node.setStatus(status);
 
         nodeMapper.insert(node);
 
-
-
-        if (NodeType.fromCode(dto.getType()) == NodeType.ARTICLE) {
+        if (isArticle) {
             ArticleNodeMessage message = new ArticleNodeMessage();
             message.setUserId(userId);
             message.setNodeId(node.getId());
@@ -94,11 +95,10 @@ public class NodeServiceImpl implements NodeService {
         LambdaUpdateWrapper<Node> updateWrapper = new LambdaUpdateWrapper<>();
 
         updateWrapper
-            .eq(Node::getId, id)
-            .isNull(Node::getDeletedAt)
-            .set(Node::getTitle, dto.getTitle())
-            .set(Node::getSort, dto.getSort());
-
+                .eq(Node::getId, id)
+                .isNull(Node::getDeletedAt)
+                .set(Node::getTitle, dto.getTitle())
+                .set(Node::getSort, dto.getSort());
 
         nodeMapper.update(null, updateWrapper);
     }
@@ -117,10 +117,9 @@ public class NodeServiceImpl implements NodeService {
         if (node.getType() == NodeType.GROUP || node.getType() == NodeType.MENU) {
 
             long count = nodeMapper.selectCount(
-                new LambdaQueryWrapper<Node>()
-                    .eq(Node::getParentId, id)
-                    .isNull(Node::getDeletedAt)
-            );
+                    new LambdaQueryWrapper<Node>()
+                            .eq(Node::getParentId, id)
+                            .isNull(Node::getDeletedAt));
 
             if (count > 0) {
                 throw new BizException(ErrorCode.CONFLICT, "节点下有子节点，不能删除");
@@ -132,18 +131,9 @@ public class NodeServiceImpl implements NodeService {
         }
 
         nodeMapper.update(null, new LambdaUpdateWrapper<Node>()
-            .eq(Node::getId, id)
-            .isNull(Node::getDeletedAt)
-            .set(Node::getDeletedAt, LocalDateTime.now())
-        );
-    }
-    
-    /**
-     * 删除文章
-     * @param nodeId
-     */
-    private void deleteArticleByNodeId(Long nodeId) {
-        articleService.delete(nodeId);
+                .eq(Node::getId, id)
+                .isNull(Node::getDeletedAt)
+                .set(Node::getDeletedAt, LocalDateTime.now()));
     }
 
     /**
@@ -160,6 +150,15 @@ public class NodeServiceImpl implements NodeService {
                 new LambdaQueryWrapper<Node>()
                         .eq(Node::getId, id)
                         .isNull(Node::getDeletedAt));
+    }
+
+    /**
+     * 删除文章
+     * 
+     * @param nodeId
+     */
+    private void deleteArticleByNodeId(Long nodeId) {
+        articleService.delete(nodeId);
     }
 
     /**

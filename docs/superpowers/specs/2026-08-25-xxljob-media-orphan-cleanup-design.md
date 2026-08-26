@@ -16,7 +16,7 @@
 2. §4 依赖（父 POM 已有版本时可跳过版本声明，核对 groupId）  
 3. §5～§6 Docker Admin + 建库初始化（**先跑通控制台**）  
 4. §7～§8 `.env` + `application.yml`  
-5. §9～§12 Java / Mapper / Service / Handler  
+5. §9～§12 Java / Mapper / Service / Handler（§9 先 Properties + Configuration，再 XxlJobConfig）  
 6. §13 控制台建执行器与任务  
 7. §14 dry-run 验证 → §15 正式跑
 
@@ -76,15 +76,29 @@
               │ 调度 HTTP
               ▼
      cms-back-admin（本机 / 容器）
-       ├─ XxlJobConfig（注册执行器）
-       ├─ MediaCleanupJobHandler  @XxlJob("...")
-       └─ MediaCleanupService
-              ├─ MediaFilesMapper（查候选）
-              └─ OssStorage（abort / delete）
+       ├─ config/XxlJobConfig          ← 仅注册 XxlJobSpringExecutor（全局唯一）
+       ├─ job/media/MediaCleanupJobHandler  @XxlJob("...")
+       └─ 注入 system 层 Service
+              ▼
+     cms-back-system
+       └─ task/media/
+            ├─ MediaCleanupProperties / MediaCleanupConfiguration
+            ├─ MediaCleanupService
+            ├─ MediaFilesMapper（查候选）
+            └─ OssStorage（abort / delete）
                     │
          MySQL: media_files / article_media_refs
          OSS: 桶内 object_key
 ```
+
+**配置职责拆分（重要）：**
+
+| 类 | 职责 | 以后加新 Job 要不要改 |
+|---|---|---|
+| `XxlJobConfig` | 注册 XXL-Job **执行器** Bean | **不用**（所有 Job 共用同一 Executor） |
+| `MediaCleanupConfiguration` | 注册 `MediaCleanupProperties` | 不用；新任务有自己的 Configuration |
+| `MediaCleanupJobHandler` | `@XxlJob` 入口，调 Service | 每个新任务新增一个 Handler 类 |
+| `MediaCleanupService` | 媒体清理业务 | 每个新任务新增自己的 Service |
 
 **网络注意：**
 
@@ -127,12 +141,24 @@
 </dependency>
 ```
 
-**落点约定：**
+**落点约定（按文件夹，便于以后扩展）：**
 
-| 代码 | 模块 |
-|---|---|
-| `XxlJobConfig`、`MediaCleanupJobHandler` | `cms-back-admin` |
-| `MediaCleanupProperties`、`MediaCleanupService`、Mapper 方法 | `cms-back-system` |
+| 代码 | 模块 | 路径 |
+|---|---|---|
+| `XxlJobConfig` | `cms-back-admin` | `admin/config/XxlJobConfig.java` |
+| `MediaCleanupJobHandler` | `cms-back-admin` | `admin/job/media/MediaCleanupJobHandler.java` |
+| `MediaCleanupProperties` | `cms-back-system` | `system/task/media/MediaCleanupProperties.java` |
+| `MediaCleanupConfiguration` | `cms-back-system` | `system/task/media/MediaCleanupConfiguration.java` |
+| `MediaCleanupService` + Impl | `cms-back-system` | `system/task/media/` 或 `service/` |
+| Mapper 方法 + XML | `cms-back-system` | 已有 `MediaFilesMapper` |
+
+以后加新定时任务（如报表、对账）：
+
+```text
+admin/job/report/ReportJobHandler.java     ← 新 @XxlJob
+system/task/report/ReportService...        ← 新业务
+XxlJobConfig                               ← 不动
+```
 
 ---
 
@@ -224,7 +250,21 @@ cms:
 
 ### 6.3 一次性初始化 `xxl_job` 库
 
-在 MySQL 起来后（宿主机连 `127.0.0.1:3307`）：
+**推荐：用项目脚本（Windows / Linux 各一份）**
+
+```bash
+cd cms-back
+docker compose up -d db          # 先等 cms-mysql healthy
+./deploy/xxl-job/init-xxl-job-db.sh    # Linux
+# 或
+.\deploy\xxl-job\init-xxl-job-db.ps1   # Windows（须在 cms-back 目录执行）
+docker compose up -d xxl-job-admin
+```
+
+脚本会做：建库 → 按 `XXL_JOB_ADMIN_IMAGE_TAG` 下载 `tables_xxl_job.sql` → 导入 → `SHOW TABLES` 验收。  
+SQL 缓存在 `deploy/xxl-job/tables_xxl_job.sql`（约 120 行，官方脚本，勿手改）。
+
+**手动方式（仅作参考）：**
 
 ```sql
 CREATE DATABASE IF NOT EXISTS xxl_job
@@ -232,15 +272,16 @@ CREATE DATABASE IF NOT EXISTS xxl_job
   COLLATE utf8mb4_unicode_ci;
 ```
 
-下载官方脚本并执行（版本与镜像一致，如 2.4.2）：
+下载官方脚本（**版本与镜像一致**，如 `2.4.2` tag，不要用 master）：
 
-- GitHub：`https://github.com/xuxueli/xxl-job/blob/master/doc/db/tables_xxl_job.sql`  
-- 或 release 包里的 `tables_xxl_job.sql`
+- `https://raw.githubusercontent.com/xuxueli/xxl-job/2.4.2/doc/db/tables_xxl_job.sql`
 
 ```bash
-# 示例：在 cms-back 目录
-docker exec -i cms-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" xxl_job < tables_xxl_job.sql
+# Windows：用 cmd 重定向，避免 PowerShell 管道破坏 SQL 中文注释
+cmd /c "docker exec -i cms-mysql mysql --default-character-set=utf8mb4 -uroot -p%MYSQL_ROOT_PASSWORD% xxl_job < deploy\xxl-job\tables_xxl_job.sql"
 ```
+
+**MySQL healthcheck：** 若 `depends_on: service_healthy` 失败，检查 compose 是否用 `mysqladmin ping`（部分镜像无 `healthcheck.sh`）。
 
 ### 6.4 启动与验收
 
@@ -282,11 +323,13 @@ XXL_JOB_ADMIN_IMAGE_TAG=2.4.2
 应用在 IDE 启动、不在 Docker 里时，需要连宿主机上的 Admin：
 
 ```env
-XXL_JOB_ADMIN_ADDRESSES=http://127.0.0.1:8088/xxl-job-admin
+XXL_JOB_ADMIN_ADDRESS=http://127.0.0.1:8088/xxl-job-admin
 XXL_JOB_EXECUTOR_PORT=9999
 XXL_JOB_ACCESS_TOKEN=
 XXL_JOB_LOG_PATH=./logs/xxl-job
 ```
+
+> 键名与 `application.yml` 中 `${XXL_JOB_ADMIN_ADDRESS:...}` 一致。
 
 ### 7.4 不要写进 `.env` 的
 
@@ -302,7 +345,7 @@ XXL_JOB_LOG_PATH=./logs/xxl-job
 xxl:
   job:
     admin:
-      addresses: ${XXL_JOB_ADMIN_ADDRESSES:http://127.0.0.1:8088/xxl-job-admin}
+      address: ${XXL_JOB_ADMIN_ADDRESS:http://127.0.0.1:8088/xxl-job-admin}
     executor:
       appname: cms-back-admin-executor
       address: ""
@@ -326,14 +369,16 @@ IDE 启动时：确保能读到 `.env`，或在 Run Configuration 里配同样�
 
 ---
 
-## 9. Properties + XxlJobConfig
+## 9. 配置类（Properties / Executor 拆分）
+
+> **不要把 `MediaCleanupProperties` 注册进 `XxlJobConfig`**。执行器配置与单个任务配置是两件独立的事。
 
 ### 9.1 `MediaCleanupProperties.java`
 
-路径：`cms-back-system/src/main/java/com/cms/cms_back/system/media/MediaCleanupProperties.java`
+路径：`cms-back-system/src/main/java/com/cms/cms_back/system/task/media/MediaCleanupProperties.java`
 
 ```java
-package com.cms.cms_back.system.media;
+package com.cms.cms_back.system.task.media;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -360,7 +405,37 @@ public class MediaCleanupProperties {
 }
 ```
 
-### 9.2 `XxlJobConfig.java`
+### 9.2 `MediaCleanupConfiguration.java`（注册 Properties）
+
+路径：`cms-back-system/src/main/java/com/cms/cms_back/system/task/media/MediaCleanupConfiguration.java`
+
+```java
+package com.cms.cms_back.system.task.media;
+
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@EnableConfigurationProperties(MediaCleanupProperties.class)
+public class MediaCleanupConfiguration {
+}
+```
+
+**可选替代（全局扫描，以后所有 `@ConfigurationProperties` 免写 Configuration）：**
+
+在 `CmsBackApplication` 上加：
+
+```java
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+
+@SpringBootApplication(scanBasePackages = "com.cms.cms_back")
+@ConfigurationPropertiesScan(basePackages = "com.cms.cms_back")
+public class CmsBackApplication { ... }
+```
+
+若采用扫描，可 **省略** `MediaCleanupConfiguration`；二选一即可。
+
+### 9.3 `XxlJobConfig.java`（仅注册执行器）
 
 路径：`cms-back-admin/src/main/java/com/cms/cms_back/admin/config/XxlJobConfig.java`
 
@@ -368,18 +443,15 @@ public class MediaCleanupProperties {
 package com.cms.cms_back.admin.config;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.cms.cms_back.system.media.MediaCleanupProperties;
 import com.xxl.job.core.executor.impl.XxlJobSpringExecutor;
 
 @Configuration
-@EnableConfigurationProperties(MediaCleanupProperties.class)
 public class XxlJobConfig {
 
-    @Value("${xxl.job.admin.addresses}")
+    @Value("${xxl.job.admin.address}")
     private String adminAddresses;
 
     @Value("${xxl.job.executor.appname}")
@@ -419,7 +491,12 @@ public class XxlJobConfig {
 }
 ```
 
+> 注意：`setAdminAddresses` 读的是 yml 键 `xxl.job.admin.address`（你当前 `application.yml` 已用此键名）。  
+> 官方部分示例写 `addresses`（复数），**yml 与 `@Value` 必须同名**，不要混用。
+
 启动后日志应出现执行器注册成功；控制台「执行器管理」能看到机器地址。
+
+**手敲顺序建议：** 9.1 → 9.2（或改启动类扫描）→ 9.3
 
 ---
 
@@ -496,10 +573,10 @@ KEY idx_media_files_status_created (status, created_at)
 
 ### 11.1 接口
 
-路径：`cms-back-system/.../service/MediaCleanupService.java`
+路径：`cms-back-system/src/main/java/com/cms/cms_back/system/task/media/MediaCleanupService.java`
 
 ```java
-package com.cms.cms_back.system.service;
+package com.cms.cms_back.system.task.media;
 
 public interface MediaCleanupService {
 
@@ -512,10 +589,10 @@ public interface MediaCleanupService {
 
 ### 11.2 实现
 
-路径：`cms-back-system/.../service/serviceImpl/MediaCleanupServiceImpl.java`
+路径：`cms-back-system/src/main/java/com/cms/cms_back/system/task/media/MediaCleanupServiceImpl.java`
 
 ```java
-package com.cms.cms_back.system.service.serviceImpl;
+package com.cms.cms_back.system.task.media;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -530,9 +607,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.cms.cms_back.pojo.entity.MediaFiles;
 import com.cms.cms_back.pojo.enums.MediaFilesStatus;
 import com.cms.cms_back.system.mapper.MediaFilesMapper;
-import com.cms.cms_back.system.media.MediaCleanupProperties;
 import com.cms.cms_back.system.oss.OssStorage;
-import com.cms.cms_back.system.service.MediaCleanupService;
 
 @Service
 public class MediaCleanupServiceImpl implements MediaCleanupService {
@@ -658,14 +733,14 @@ public class MediaCleanupServiceImpl implements MediaCleanupService {
 
 ## 12. Job Handler（admin）
 
-路径：`cms-back-admin/.../job/MediaCleanupJobHandler.java`
+路径：`cms-back-admin/src/main/java/com/cms/cms_back/admin/job/media/MediaCleanupJobHandler.java`
 
 ```java
-package com.cms.cms_back.admin.job;
+package com.cms.cms_back.admin.job.media;
 
 import org.springframework.stereotype.Component;
 
-import com.cms.cms_back.system.service.MediaCleanupService;
+import com.cms.cms_back.system.task.media.MediaCleanupService;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 
@@ -751,17 +826,19 @@ XxlJobHelper.handleFail("cleanup failed: " + e.getMessage());
 ## 14. 联调步骤（推荐）
 
 ```text
-1. docker compose up -d db
-2. 建 xxl_job 库 + 执行 tables_xxl_job.sql
-3. 修正 compose 后 up -d xxl-job-admin
+1. docker compose up -d db（等 healthy）
+2. .\deploy\xxl-job\init-xxl-job-db.ps1（或 .sh）
+3. docker compose up -d xxl-job-admin
 4. 浏览器打开 Admin，改密码
 5. application.yml：dry-run: true
-6. IDE 启动 cms-back-admin
-7. 控制台确认执行器在线
-8. 建两个任务，手动执行一次
-9. 看日志是否列出候选 fileId（不删）
-10. 造测试数据（§15），再 dry-run / 正式跑
-11. dry-run: false，开 Cron
+6. 手敲 §9：MediaCleanupProperties + Configuration（或启动类扫描）+ XxlJobConfig
+7. 手敲 §10～§12：Mapper / Service / Handler
+8. IDE 启动 cms-back-admin
+9. 控制台确认执行器在线
+10. 建两个任务，手动执行一次
+11. 看日志是否列出候选 fileId（不删）
+12. 造测试数据（§15），再 dry-run / 正式跑
+13. dry-run: false，开 Cron
 ```
 
 ---
@@ -795,7 +872,7 @@ WHERE id = ? AND status = 'uploading';
 |---|---|
 | 误删未保存图 | `orphan-ready-after-days ≥ 7` |
 | Admin JDBC 连错 | 容器内必须 `db:3306/xxl_job` |
-| 执行器注册不上 | 查 `addresses`、端口 9999 防火墙、token 是否一致 |
+| 执行器注册不上 | 查 `xxl.job.admin.address`、端口 9999 防火墙、token 是否一致 |
 | 多实例重复清 | 路由「第一个」+「单机串行」 |
 | OSS 删失败反复扫 | catch 后仍标 `deleted` |
 | `@Transactional` 自调用 | MVP 可接受；严格则拆 Bean |
@@ -807,13 +884,14 @@ WHERE id = ? AND status = 'uploading';
 
 - [ ] 父 POM / admin POM：`com.xuxueli:xxl-job-core`  
 - [ ] 修正 `docker-compose.yml` 的 xxl-job-admin（镜像空格、`db:3306`、`xxl_job`）  
-- [ ] 建库 + `tables_xxl_job.sql`  
-- [ ] `.env`：`XXL_JOB_ADMIN_*`、`XXL_JOB_ADMIN_ADDRESSES` 等  
+- [ ] 建库：`deploy/xxl-job/init-xxl-job-db.ps1` 或 `.sh`  
+- [ ] `.env`：`XXL_JOB_ADMIN_ADDRESS` 等  
 - [ ] `application.yml`：`xxl.job.*` + `cms.media-cleanup`（先 dry-run）  
-- [ ] `MediaCleanupProperties` + `XxlJobConfig`  
+- [ ] `MediaCleanupProperties` + `MediaCleanupConfiguration`（或启动类 `@ConfigurationPropertiesScan`）  
+- [ ] `XxlJobConfig`（**仅** `XxlJobSpringExecutor`，不含 Properties）  
 - [ ] `MediaFilesMapper` 方法 + XML  
-- [ ] `MediaCleanupService` + Impl  
-- [ ] `MediaCleanupJobHandler`  
+- [ ] `MediaCleanupService` + Impl（`system/task/media/`）  
+- [ ] `MediaCleanupJobHandler`（`admin/job/media/`）  
 - [ ] 控制台执行器 + 两个任务  
 - [ ] dry-run 手动跑通 → 正式 Cron  
 
@@ -835,3 +913,5 @@ WHERE id = ? AND status = 'uploading';
 - [x] Properties 键名与现有 yml（`stale-uploading-after-hours` 等）对齐  
 - [x] Handler 名、Cron、执行器 AppName 对照表  
 - [x] dry-run / 测试用例 / 手敲清单完整  
+- [x] `XxlJobConfig` 与 `MediaCleanupProperties` 职责拆分、文件夹约定  
+- [x] 初始化脚本路径 `deploy/xxl-job/init-xxl-job-db.*`  

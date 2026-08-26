@@ -17,6 +17,7 @@ import com.cms.cms_back.system.mapper.SpaceMapper;
 import com.cms.cms_back.system.mq.producers.PublishEventsProducer;
 import com.cms.cms_back.system.service.ArticleMediaRefService;
 import com.cms.cms_back.system.service.ArticleService;
+import com.cms.cms_back.system.service.NodeService;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -30,6 +31,8 @@ import com.cms.cms_back.pojo.dto.mq.PublishEventsMessage;
 import com.cms.cms_back.pojo.entity.Article;
 import com.cms.cms_back.pojo.entity.Node;
 import com.cms.cms_back.pojo.entity.Space;
+import com.cms.cms_back.pojo.enums.NodeStatus;
+import com.cms.cms_back.pojo.enums.NodeType;
 import com.cms.cms_back.pojo.enums.PublishEventType;
 import com.cms.cms_back.pojo.enums.PublishStatus;
 import com.cms.cms_back.pojo.vo.article.GetArticleVO;
@@ -50,7 +53,8 @@ public class ArticleServiceImpl implements ArticleService {
     private static final Logger log = LoggerFactory.getLogger(ArticleServiceImpl.class);
 
     public ArticleServiceImpl(ArticleMapper articleMapper, NodeMapper nodeMapper, SpaceMapper spaceMapper,
-            ObjectMapper objectMapper, PublishEventsProducer publishEventsProducer, ArticleMediaRefService articleMediaRefService) {
+            ObjectMapper objectMapper, PublishEventsProducer publishEventsProducer,
+            ArticleMediaRefService articleMediaRefService) {
         this.articleMapper = articleMapper;
         this.nodeMapper = nodeMapper;
         this.spaceMapper = spaceMapper;
@@ -119,14 +123,17 @@ public class ArticleServiceImpl implements ArticleService {
             throw new BizException(ErrorCode.BAD_REQUEST, "文章节点不存在");
         }
         article.setSpaceId(node.getSpaceId());
-
         article.setCreatedBy(userId);
+
+        boolean isPublished = article.getPublishStatus() == PublishStatus.PUBLISHED;
 
         try {
             articleMapper.insert(article);
             if (article.getContent() != null && !article.getContent().isEmpty()) {
-                articleMediaRefService.syncRefsByContent(article.getId(), article.getSpaceId(), article.getContent());
-                articleMediaRefService.recomputeAccessLevelForArticle(article.getId());
+                articleMediaRefService.recomputeAccessLevelForArticleDiff(article);
+            }
+            if (isPublished) {
+                updateNodeStatus(dto.getNodeId(), NodeStatus.VISIBLE);
             }
         } catch (DuplicateKeyException e) {
             log.info("文章已存在, nodeId: {}", dto.getNodeId());
@@ -154,13 +161,12 @@ public class ArticleServiceImpl implements ArticleService {
 
         articleMapper.update(null, updateWrapper);
 
-        Article article = getArticleByNodeId(nodeId);
-
-        /** 同步引用关系 */
-        articleMediaRefService.syncRefsByContent(article.getId(), article.getSpaceId(), dto.getContent());
-
         /** 改发布状态 */
-        changeArticlePublishStatus(nodeId, PublishStatus.formCode(dto.getPublishStatus()), userId);
+        changeArticlePublishStatus(nodeId, PublishStatus.formCode(dto.getPublishStatus()), userId, false);
+
+        /** 重算受影响的文件访问级别 */
+        Article article = getArticleByNodeId(nodeId);
+        articleMediaRefService.recomputeAccessLevelForArticleDiff(article);
     }
 
     /**
@@ -198,7 +204,7 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void publish(Long nodeId, Long userId) {
-        changeArticlePublishStatus(nodeId, PublishStatus.PUBLISHED, userId);
+        changeArticlePublishStatus(nodeId, PublishStatus.PUBLISHED, userId, true);
     }
 
     /**
@@ -207,7 +213,7 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void unpublish(Long nodeId, Long userId) {
-        changeArticlePublishStatus(nodeId, PublishStatus.DRAFT, userId);
+        changeArticlePublishStatus(nodeId, PublishStatus.DRAFT, userId, true);
     }
 
     /**
@@ -217,7 +223,8 @@ public class ArticleServiceImpl implements ArticleService {
      * @param publishStatus
      * @param userId
      */
-    private void changeArticlePublishStatus(Long nodeId, PublishStatus publishStatus, Long userId) {
+    private void changeArticlePublishStatus(Long nodeId, PublishStatus publishStatus, Long userId,
+            boolean recomputeMediaAccess) {
         if (nodeId == null || nodeId <= 0) {
             throw new BizException(ErrorCode.BAD_REQUEST, "文章节点ID不能为空");
         }
@@ -239,8 +246,13 @@ public class ArticleServiceImpl implements ArticleService {
                 .set(Article::getPublishAt, publishAt)
                 .set(Article::getUpdatedBy, userId));
 
-        /** 发布状态改变时，重算该文章引用的所有文件 */
-        articleMediaRefService.recomputeAccessLevelForArticle(article.getId());
+        NodeStatus nodeStatus = publishStatus == PublishStatus.PUBLISHED ? NodeStatus.VISIBLE : NodeStatus.HIDDEN;
+        updateNodeStatus(userId, nodeStatus);
+
+        if (recomputeMediaAccess) {
+            /** 发布状态改变时，重算该文章引用的所有文件 */
+            articleMediaRefService.recomputeAccessLevelForArticle(article.getId());
+        }
 
         sendPublishEvents(nodeId, publishStatus, isPublished, userId, article);
 
@@ -333,11 +345,8 @@ public class ArticleServiceImpl implements ArticleService {
                         .isNull(Article::getDeletedAt));
     }
 
-    /**
-     * 获取节点
-     */
     private Node getNodeByNodeId(Long nodeId) {
-        if (nodeId == null) {
+        if (nodeId == null || nodeId <= 0) {
             return null;
         }
 
@@ -345,5 +354,19 @@ public class ArticleServiceImpl implements ArticleService {
                 new LambdaQueryWrapper<Node>()
                         .eq(Node::getId, nodeId)
                         .isNull(Node::getDeletedAt));
+    }
+
+    private void updateNodeStatus(Long nodeId, NodeStatus status) {
+        Node node = getNodeByNodeId(nodeId);
+        if (node == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "节点不存在");
+        }
+
+        nodeMapper.update(null,
+                new LambdaUpdateWrapper<Node>()
+                        .eq(Node::getId, nodeId)
+                        .eq(Node::getType, NodeType.ARTICLE)
+                        .isNull(Node::getDeletedAt)
+                        .set(Node::getStatus, status));
     }
 }

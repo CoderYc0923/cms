@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.cms.cms_back.common.exception.BizException;
+import com.cms.cms_back.pojo.entity.Article;
 import com.cms.cms_back.pojo.entity.ArticleMediaRefs;
 import com.cms.cms_back.pojo.entity.MediaFiles;
 import com.cms.cms_back.pojo.enums.MediaFilesAccessLevelType;
@@ -178,6 +179,18 @@ public class ArticleMediaRefServiceImpl implements ArticleMediaRefService {
     public void recomputeAccessLevelForArticle(Long articleId) {
         List<Long> fileIds = articleMediaRefMapper.selectFileIdsByArticleId(articleId);
         recomputeAccessLevel(new HashSet<>(fileIds));
+    }
+
+    /**
+     * 重算某篇文章受影响的文件访问级别
+     * 
+     * @param article
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void recomputeAccessLevelForArticleDiff(Article article) {
+        Set<Long> affectedFileIds = syncRefsByContent(article.getId(), article.getSpaceId(), article.getContent());
+        recomputeAccessLevel(affectedFileIds);
     }
 
     /**

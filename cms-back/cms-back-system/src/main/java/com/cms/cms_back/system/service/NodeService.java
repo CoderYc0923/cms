@@ -2,6 +2,8 @@ package com.cms.cms_back.system.service;
 
 import com.cms.cms_back.pojo.dto.node.CreateNodeDTO;
 import com.cms.cms_back.pojo.dto.node.UpdateNodeDTO;
+import com.cms.cms_back.pojo.entity.Node;
+import com.cms.cms_back.pojo.enums.NodeStatus;
 
 public interface NodeService {
 
