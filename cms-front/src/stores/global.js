@@ -1,20 +1,22 @@
-import { App, message, notification, Modal } from 'ant-design-vue'
+import { message, notification, Modal } from 'ant-design-vue'
 
+/**
+ * 只挂静态 API，不要在 store 里调用 App.useApp()：
+ * useApp 必须在 <a-app> 子树的 setup 中使用，否则容易启动白屏。
+ */
 export const useGlobalStore = defineStore('global', {
   state: () => {
-    const staticFunction = App.useApp()
-
     message.config({
       maxCount: 2,
-      duration: 2,
+      duration: 2
     })
     notification.config({
       maxCount: 2,
-      duration: 2,
+      duration: 2
     })
     return {
-      message: message,
-      notification: notification,
+      message,
+      notification,
       modal: Modal
     }
   }

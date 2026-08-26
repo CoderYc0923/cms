@@ -5,40 +5,48 @@ import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { AntDesignVueResolver } from 'unplugin-vue-components/resolvers'
 
-const resolveEntryHtml = (appTarget) =>
-  appTarget === 'docs'
+/**
+ * 双入口只做两件事：
+ * 1) 按 mode 选 HTML 入口
+ * 2) 按 mode 选 outDir
+ * Antd / 公共组件按需：靠 Components resolver + 路由懒加载，不要手写 optimizeDeps。
+ */
+function resolveEntryHtml (appTarget) {
+  return appTarget === 'docs'
     ? path.resolve(__dirname, 'docs.html')
     : path.resolve(__dirname, 'index.html')
+}
 
-const resolveOutDir = (appTarget, docsSpace) => {
+function resolveOutDir (appTarget, docsSpace) {
   if (appTarget === 'docs') {
     return `dist/docs-${docsSpace || 'unknown'}`
   }
   return 'dist/admin'
 }
 
-const mpaDevFallbackPlugin = (appTarget) => ({
-  name: 'mpa-dev-fallback',
-  configureServer (server) {
-    server.middlewares.use((req, _res, next) => {
-      const url = req.url?.split('?')[0] ?? ''
-      if (appTarget === 'docs' && (url === '/' || url === '/index.html')) {
-        req.url = '/docs.html'
-      }
-      if (appTarget === 'admin' && url === '/') {
-        req.url = '/index.html'
-      }
-      next()
-    })
+/** 开发时把 / 指到当前入口的 html，避免 MPA 下根路径 404 */
+function mpaDevFallbackPlugin (appTarget) {
+  return {
+    name: 'mpa-dev-fallback',
+    configureServer (server) {
+      server.middlewares.use((req, _res, next) => {
+        const url = req.url?.split('?')[0] ?? ''
+        if (appTarget === 'docs' && (url === '/' || url === '/index.html')) {
+          req.url = '/docs.html'
+        }
+        if (appTarget === 'admin' && url === '/') {
+          req.url = '/index.html'
+        }
+        next()
+      })
+    }
   }
-})
+}
 
-// https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const appTarget = env.VITE_APP_TARGET || 'admin'
   const docsSpace = env.VITE_DOCS_SPACE || 'unknown'
-  const entryHtml = resolveEntryHtml(appTarget)
   const isDev = command === 'serve'
 
   return {
@@ -57,10 +65,11 @@ export default defineConfig(({ mode, command }) => {
         dirs: ['./src/hooks', './src/stores']
       }),
       Components({
-        // 模板里的 a-xxx 按需解析；JS API（message 等）仍显式 import
+        // 不自动扫业务目录：共享组件保持显式 import，随路由 chunk 按需加载
+        dirs: [],
         resolvers: [
           AntDesignVueResolver({
-            // ant-design-vue v4 为 CSS-in-JS，不要再拉 less 样式入口
+            // ant-design-vue v4 = CSS-in-JS，不要拉 less/css 样式入口
             importStyle: false
           })
         ],
@@ -80,7 +89,7 @@ export default defineConfig(({ mode, command }) => {
       outDir: resolveOutDir(appTarget, docsSpace),
       emptyOutDir: true,
       rollupOptions: {
-        input: entryHtml,
+        input: resolveEntryHtml(appTarget),
         output: {
           chunkFileNames: 'static/js/[name]-[hash].js',
           entryFileNames: 'static/js/[name]-[hash].js',

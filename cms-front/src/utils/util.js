@@ -4,8 +4,6 @@ import { API_PREFIX } from "@/consts/const.js";
 import { getSession, getToken } from "./token";
 import { idRegex, linkRegexp } from "./regexp";
 
-const global = useGlobalStore();
-
 /**
  * 处理 HTML 字符串，为标题添加 id，并生成嵌套目录树
  * @param {string} html 原始 HTML 字符串
@@ -531,10 +529,10 @@ export async function copyImgageToClipboard(url) {
   navigator.clipboard
     .write([item])
     .then(() => {
-      global.message.success("复制成功");
+      message.success("复制成功");
     })
     .catch((err) => {
-      global.message.error("复制失败");
+      message.error("复制失败");
     });
 }
 
