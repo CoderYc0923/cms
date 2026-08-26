@@ -102,58 +102,6 @@
   background-color: var(--hover-color);
 }
 
-.ant-menu-item-group {
-  &::after {
-    display: block;
-    content: "";
-    height: 1px;
-    background-color: #eee;
-    margin: 10px 31px 10px 11px;
-  }
-}
+/* Catalogue 分组样式已迁移至 shared/components/Catalogue，此处不再注入分割线 */
 
-.ant-menu-item-group-title {
-  color: var(--sidebar-group-color) !important;
-  line-height: 24px !important;
-  font-size: 17px !important;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-
-  &::before {
-    content: "";
-    width: 3px;
-    height: 14px;
-    background-color: var(--highlight-color);
-    margin-right: 8px;
-  }
-}
-
-.ant-anchor-link-title {
-  color: var(--base-font-color) !important;
-}
-
-.ant-anchor-link-active>.ant-anchor-link-title {
-  color: var(--highlight-color) !important;
-}
-
-.ant-anchor-link {
-  margin-bottom: 8px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-:where(.css-dev-only-do-not-override-htdnsb).ant-anchor-wrapper .ant-anchor .ant-anchor-link-title {
-  margin-block-end: 6px;
-}
-
-:where(.css-dev-only-do-not-override-htdnsb).ant-anchor-wrapper:not(.ant-anchor-wrapper-horizontal) .ant-anchor .ant-anchor-ink {
-  background-color: var(--highlight-color);
-}
-
-:where(.css-dev-only-do-not-override-htdnsb).ant-anchor-wrapper .ant-anchor {
-  padding-left: 24px;
-  margin-top: 24px;
-}
+/* Anchor 样式由 shared/components/Anchor 统一管理 */

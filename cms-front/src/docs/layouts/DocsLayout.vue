@@ -1,6 +1,6 @@
 <template>
-  <div class="docs-layout">
-    <header class="docs-layout__header">
+  <div class="docs-layout docs-theme" :class="{ 'docs-layout--embed': embedMode }">
+    <header v-if="!embedMode" class="docs-layout__header">
       <div class="docs-layout__brand">
         <span class="docs-layout__space">{{ spaceTitle }}</span>
         <span class="docs-layout__subtitle">文档中心</span>
@@ -13,7 +13,10 @@
 </template>
 
 <script setup>
+import { isEmbedMode } from '@/docs/utils/embed'
+
 const docsSpace = import.meta.env.VITE_DOCS_SPACE || 'unknown'
+const embedMode = isEmbedMode()
 
 const spaceTitleMap = {
   iot: '物联网',
@@ -27,17 +30,21 @@ const spaceTitle = computed(() => spaceTitleMap[docsSpace] || docsSpace)
 .docs-layout {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  background: var(--cms-color-bg);
+  height: 100vh;
+  overflow: hidden;
+  background: var(--color-bg-page);
+  color: var(--color-text-primary);
 
   &__header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
     display: flex;
     align-items: center;
-    height: var(--cms-header-height);
+    height: var(--header-height);
     padding: 0 24px;
-    background: var(--cms-color-surface);
-    border-bottom: 1px solid var(--cms-color-border);
-    box-shadow: var(--cms-shadow-sm);
+    background: var(--color-bg-surface);
+    border-bottom: 1px solid var(--color-border);
   }
 
   &__brand {
@@ -47,14 +54,14 @@ const spaceTitle = computed(() => spaceTitleMap[docsSpace] || docsSpace)
   }
 
   &__space {
-    font-size: 18px;
+    font-size: var(--text-title-md);
     font-weight: 600;
-    color: var(--cms-color-text);
+    color: var(--color-text-primary);
   }
 
   &__subtitle {
-    font-size: 13px;
-    color: var(--cms-color-text-secondary);
+    font-size: var(--text-caption);
+    color: var(--color-text-secondary);
   }
 
   &__main {
@@ -62,5 +69,42 @@ const spaceTitle = computed(() => spaceTitleMap[docsSpace] || docsSpace)
     min-height: 0;
     overflow: hidden;
   }
+
+  &--embed {
+    height: 100%;
+    min-height: 100vh;
+  }
+}
+</style>
+
+<style lang="less">
+html.cms-docs-embed,
+html.cms-docs-embed body,
+html.cms-docs-embed #app {
+  height: 100%;
+}
+
+html.cms-docs-embed--auto,
+html.cms-docs-embed--auto body,
+html.cms-docs-embed--auto #app {
+  height: auto;
+  min-height: 100%;
+}
+
+html.cms-docs-embed--auto .docs-layout--embed {
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
+}
+
+html.cms-docs-embed--auto .docs-viewer {
+  height: auto;
+  min-height: 100vh;
+}
+
+html.cms-docs-embed--auto .docs-viewer__content,
+html.cms-docs-embed--auto .docs-viewer__sidebar {
+  height: auto;
+  min-height: 100vh;
 }
 </style>

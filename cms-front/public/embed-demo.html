@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CMS Docs Embed Demo</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #f5f5f5;
+      }
+      .host-header {
+        height: 56px;
+        padding: 0 24px;
+        display: flex;
+        align-items: center;
+        background: #1f2937;
+        color: #fff;
+        font-weight: 600;
+      }
+      .host-main {
+        max-width: 1200px;
+        margin: 24px auto;
+        padding: 0 16px;
+      }
+      iframe {
+        width: 100%;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="host-header">官网宿主页（模拟）</header>
+    <main class="host-main">
+      <p>下方 iframe 加载无头 docs（请将 src 改为本地 embed 端口，如 5177）：</p>
+      <iframe
+        id="cms-docs"
+        src="/docs.html?embed=auto"
+        title="CMS Docs"
+        style="height: 720px"
+      ></iframe>
+    </main>
+    <script>
+      window.addEventListener('message', (event) => {
+        const data = event.data
+        if (!data || data.source !== 'cms-docs') return
+        if (data.type === 'height') {
+          document.getElementById('cms-docs').style.height = data.height + 'px'
+        }
+        if (data.type === 'route') {
+          console.log('[embed demo] route:', data.path)
+        }
+      })
+    </script>
+  </body>
+</html>

@@ -1,25 +1,17 @@
 <template>
   <div class="catalogue">
     <div class="catalogue_content">
-      <div class="catalogue_tool" v-if="!readonly">
-        <a-button
-          size="small"
-          @click="handleChangeMode"
-          :type="mode === CATALOGUE_MODE.EDIT ? 'primary' : 'default'"
-          v-auth
-        >
-          <template #icon>
-            <RetweetOutlined />
-          </template>
-          {{ mode === CATALOGUE_MODE.EDIT ? "编辑" : "预览" }}
-        </a-button>
-        <a-button
-          size="small"
-          type="primary"
-          @click="handleAddGroup"
+      <div v-if="!readonly" class="catalogue_header" v-auth>
+        <span class="catalogue_header-title">页面</span>
+        <button
           v-if="isEdit"
-          style="margin-left: 10px;"
-        >新增分组</a-button>
+          type="button"
+          class="catalogue_header-action"
+          title="新增分组"
+          @click="handleAddGroup"
+        >
+          <PlusOutlined />
+        </button>
       </div>
       <a-menu
         v-model:openKeys="openKeys"
@@ -28,20 +20,23 @@
         @click="handleClick"
         class="catalogue_menu"
       >
-        <div v-for="firstItem in list" :key="firstItem.id">
+        <div v-for="(firstItem, index) in list" :key="firstItem.id" class="catalogue_section" :class="{ 'catalogue_section--spaced': index > 0 }">
           <template v-if="firstItem.type === MENU_TYPE.GROUP">
             <a-menu-item-group :key="firstItem.id">
               <template #title>
-                <div class="menu-item-content">
-                  <span class="menu-item-label">{{ firstItem.title }}</span>
-                  <MenuItemActions
-                    v-if="isEdit"
-                    :item="firstItem"
-                    @add="handleAddItem(firstItem)"
-                    @edit="handleEditGroup(firstItem)"
-                    @delete="handleDeleteNode"
-                    @view="() => {}"
-                  />
+                <div class="menu-group-title">
+                  <span class="menu-group-title__mark" aria-hidden="true" />
+                  <div class="menu-item-content">
+                    <span class="menu-item-label">{{ firstItem.title }}</span>
+                    <MenuItemActions
+                      v-if="isEdit"
+                      :item="firstItem"
+                      @add="handleAddItem(firstItem)"
+                      @edit="handleEditGroup(firstItem)"
+                      @delete="handleDeleteNode"
+                      @view="() => {}"
+                    />
+                  </div>
                 </div>
               </template>
 
@@ -151,6 +146,26 @@
           </template>
         </div>
       </a-menu>
+      <div v-if="!readonly" class="catalogue_footer" v-auth>
+        <div class="catalogue_mode-switch">
+          <button
+            type="button"
+            class="catalogue_mode-switch__item"
+            :class="{ 'is-active': mode === CATALOGUE_MODE.PREVIEW }"
+            @click="setCatalogueMode(CATALOGUE_MODE.PREVIEW)"
+          >
+            浏览
+          </button>
+          <button
+            type="button"
+            class="catalogue_mode-switch__item"
+            :class="{ 'is-active': mode === CATALOGUE_MODE.EDIT }"
+            @click="setCatalogueMode(CATALOGUE_MODE.EDIT)"
+          >
+            编辑
+          </button>
+        </div>
+      </div>
     </div>
     <GroupFormModal
       v-if="!readonly"
@@ -175,7 +190,7 @@ import { findItemByAttr } from "@/utils/util";
 import MenuItemActions from "./MenuItemActions.vue";
 import GroupFormModal from "./GroupFormModal.vue";
 import ItemFormModal from "./ItemFormModal.vue";
-import { RetweetOutlined } from "@ant-design/icons-vue";
+import { PlusOutlined } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import { addGroup, editGroup, deleteGroup, getGroupList } from "@/service/group";
 import { createItem, editItem } from "@/service/items";
@@ -218,6 +233,8 @@ const [isAddItemEdit, setIsAddItemEdit] = useState(false);
 
 const [source, setSource] = useState(null);
 
+let treeRequestSeq = 0;
+
 const isEdit = computed(() => !props.readonly && mode.value === CATALOGUE_MODE.EDIT);
 
 const emit = defineEmits(["articleClick", "nodeDeleted"]);
@@ -236,12 +253,8 @@ const buildNodePayload = (form, extra = {}) => {
   return params;
 };
 
-const handleChangeMode = () => {
-  setMode(
-    mode.value === CATALOGUE_MODE.EDIT
-      ? CATALOGUE_MODE.PREVIEW
-      : CATALOGUE_MODE.EDIT
-  );
+const setCatalogueMode = nextMode => {
+  setMode(nextMode);
 };
 
 const handleClick = e => {
@@ -367,13 +380,22 @@ const getTree = async slug => {
   if (!spaceSlug) {
     return;
   }
+
+  const requestSeq = ++treeRequestSeq;
+
   try {
     const fetchTree = props.readonly ? getPublicTree : getGroupList;
     const res = await fetchTree(spaceSlug);
+    if (requestSeq !== treeRequestSeq || spaceSlug !== source.value) {
+      return;
+    }
     if (res.code === 0 || res.code === 200) {
       setList(res.data || []);
     }
   } catch (error) {
+    if (requestSeq !== treeRequestSeq) {
+      return;
+    }
     console.error("getTree", error);
   }
 };
@@ -393,6 +415,11 @@ const loadTree = (slug) => {
   }
   if (!props.readonly && !userStore.isLoggedIn) {
     return;
+  }
+  if (source.value !== spaceSlug) {
+    setList([]);
+    setSelectedKeys([]);
+    setOpenKeys([]);
   }
   setSource(spaceSlug);
   getTree(spaceSlug);
@@ -446,7 +473,7 @@ watch(
 );
 
 defineExpose({
-  refresh: () => getTree(),
+  refresh: () => getTree(resolveSpaceSlug()),
   selectNode
 });
 </script>
@@ -456,7 +483,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 16px 0 16px 16px;
+  padding: 8px 6px 12px 8px;
   box-sizing: border-box;
 
   &_content {
@@ -466,9 +493,81 @@ defineExpose({
     min-height: 0;
   }
 
-  &_tool {
+  &_header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     flex-shrink: 0;
-    margin: 0 16px 12px 0;
+    margin: 0 6px 4px 0;
+    padding: 4px 8px 8px;
+
+    &-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-tertiary);
+    }
+
+    &-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+
+      &:hover {
+        background: var(--color-bg-hover);
+        color: var(--color-text-primary);
+      }
+    }
+  }
+
+  &_footer {
+    flex-shrink: 0;
+    margin: 16px 6px 0 0;
+    padding-top: 16px;
+  }
+
+  &_mode-switch {
+    display: flex;
+    padding: 3px;
+    border-radius: var(--radius-sm);
+    background: var(--color-border-subtle);
+
+    &__item {
+      flex: 1;
+      padding: 5px 0;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      font-size: var(--text-caption);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+
+      &:hover:not(.is-active) {
+        color: var(--color-text-primary);
+      }
+
+      &.is-active {
+        background: var(--color-bg-surface);
+        color: var(--color-text-primary);
+        font-weight: 500;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+    }
+  }
+
+  &_section {
+    &--spaced {
+      margin-top: 20px;
+    }
   }
 
   &_menu {
@@ -477,6 +576,7 @@ defineExpose({
     min-height: 0;
     overflow-y: auto;
     border-inline-end: none !important;
+    background: transparent !important;
   }
 
   .menu-item-content {
@@ -485,6 +585,100 @@ defineExpose({
     justify-content: space-between;
     width: 100%;
     gap: 8px;
+  }
+
+  .menu-item-label {
+    font-size: var(--text-label);
+    line-height: 20px;
+    color: var(--color-text-primary);
+  }
+
+  .menu-group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+
+    &__mark {
+      flex-shrink: 0;
+      width: 2px;
+      height: 12px;
+      border-radius: 1px;
+      background: var(--color-primary);
+      opacity: 0.35;
+    }
+
+    .menu-item-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text-tertiary);
+    }
+  }
+
+  :deep(.ant-menu) {
+    font-size: var(--text-label);
+    color: var(--color-text-primary);
+    background: transparent;
+  }
+
+  :deep(.ant-menu-item),
+  :deep(.ant-menu-submenu-title) {
+    height: 32px !important;
+    line-height: 32px !important;
+    margin-block: 1px;
+    padding-inline: 8px !important;
+    border-radius: var(--radius-sm);
+  }
+
+  :deep(.ant-menu-item-selected) {
+    background: var(--color-bg-hover) !important;
+    color: var(--color-text-primary) !important;
+
+    .menu-item-label {
+      color: var(--color-text-primary);
+      font-weight: 500;
+    }
+  }
+
+  :deep(.ant-menu-item:hover),
+  :deep(.ant-menu-submenu-title:hover) {
+    background: var(--color-bg-hover) !important;
+  }
+
+  :deep(.ant-menu-item-group) {
+    &::after {
+      display: none !important;
+    }
+
+    &:not(:first-child) {
+      margin-top: 20px;
+    }
+  }
+
+  :deep(.ant-menu-item-group-list) {
+    margin: 0;
+    padding: 0;
+  }
+
+  :deep(.ant-menu-item-group-title) {
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 0 2px !important;
+    padding: 0 8px 4px !important;
+    line-height: 16px !important;
+
+    &::before {
+      display: none !important;
+    }
+  }
+
+  :deep(.ant-menu-submenu .ant-menu-sub) {
+    padding-inline-start: 4px !important;
+  }
+
+  :deep(.ant-menu-inline .ant-menu-sub.ant-menu-inline) {
+    background: transparent !important;
   }
 }
 </style>

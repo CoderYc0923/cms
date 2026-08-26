@@ -1,7 +1,7 @@
 <template>
   <div class="admin-layout">
     <header class="admin-layout__header">
-      <div class="admin-layout__brand">CMS Admin</div>
+      <div class="admin-layout__brand">CMS</div>
       <nav class="admin-layout__nav">
         <router-link
           to="/spaces"
@@ -26,9 +26,7 @@
       </div>
     </header>
     <main class="admin-layout__main">
-      <div class="admin-layout__content">
-        <router-view />
-      </div>
+      <router-view />
     </main>
   </div>
 </template>
@@ -78,31 +76,32 @@ onMounted(async () => {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background: var(--cms-color-bg);
+  background: var(--color-bg-page);
+  color: var(--color-text-primary);
+  font-size: var(--text-body);
 
   &__header {
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: var(--workspace-gap);
     flex-shrink: 0;
-    height: var(--cms-header-height);
+    height: var(--header-height);
     padding: 0 24px;
-    background: var(--cms-color-surface);
-    border-bottom: 1px solid var(--cms-color-border);
-    box-shadow: var(--cms-shadow-sm);
+    background: var(--color-bg-surface);
+    border-bottom: 1px solid var(--color-border);
   }
 
   &__brand {
     flex-shrink: 0;
-    font-size: 16px;
+    font-size: var(--text-body);
     font-weight: 600;
-    color: var(--cms-color-text);
+    color: var(--color-text-primary);
   }
 
   &__nav {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     flex: 1;
     min-width: 0;
     overflow-x: auto;
@@ -110,29 +109,27 @@ onMounted(async () => {
 
   &__divider {
     width: 1px;
-    height: 16px;
-    margin: 0 4px;
-    background: var(--cms-color-border);
+    height: 14px;
+    margin: 0 8px;
+    background: var(--color-border);
     flex-shrink: 0;
   }
 
   &__nav-link,
   &__space-link {
-    padding: 6px 14px;
-    border-radius: 999px;
-    color: var(--cms-color-text-secondary);
+    padding: 4px 8px;
+    color: var(--color-text-secondary);
+    font-size: var(--text-body);
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: color 0.15s ease;
     white-space: nowrap;
 
     &:hover {
-      color: var(--cms-color-text);
-      background: rgba(18, 18, 63, 0.04);
+      color: var(--color-text-primary);
     }
 
     &.is-active {
-      color: #1677ff;
-      background: rgba(22, 119, 255, 0.08);
+      color: var(--color-text-primary);
       font-weight: 500;
     }
   }
@@ -146,16 +143,8 @@ onMounted(async () => {
   &__main {
     flex: 1;
     min-height: 0;
-    padding: 16px 24px 24px;
     overflow: hidden;
-  }
-
-  &__content {
-    height: 100%;
-    background: #fff;
-    border-radius: var(--cms-radius-md);
-    box-shadow: var(--cms-shadow-sm);
-    overflow: hidden;
+    background: var(--color-bg-surface);
   }
 }
 </style>

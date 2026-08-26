@@ -1,28 +1,21 @@
 :root,
 :host {
-  --w-e-textarea-bg-color: #fff;
-  --w-e-textarea-color: #333;
-  --w-e-textarea-border-color: #ccc;
-  --w-e-textarea-slight-border-color: #e8e8e8;
-  --w-e-textarea-slight-color: #d4d4d4;
-  --w-e-textarea-slight-bg-color: #f5f2f0;
-  --w-e-textarea-selected-border-color: #b4d5ff;
-  --w-e-textarea-handler-bg-color: #4290f7;
-  --w-e-toolbar-color: #595959;
-  --w-e-toolbar-bg-color: #fff;
-  --w-e-toolbar-active-color: #333;
-  --w-e-toolbar-active-bg-color: #f1f1f1;
-  --w-e-toolbar-disabled-color: #999;
-  --w-e-toolbar-border-color: #e8e8e8;
-  --w-e-modal-button-bg-color: #fafafa;
-  --w-e-modal-button-border-color: #d9d9d9;
-
-  --base-font-color: #262626;
-  --rich-text-content-color: #333;
-  --rich-text-title-color: #222;
-  --sidebar-group-color: #353535;
-  --highlight-color: #1890ff;
-  --hover-color: #e6f7ff;
+  --w-e-textarea-bg-color: var(--color-bg-surface);
+  --w-e-textarea-color: var(--rich-text-content-color);
+  --w-e-textarea-border-color: var(--color-border);
+  --w-e-textarea-slight-border-color: var(--color-border);
+  --w-e-textarea-slight-color: var(--color-text-tertiary);
+  --w-e-textarea-slight-bg-color: var(--color-border-subtle);
+  --w-e-textarea-selected-border-color: var(--color-primary);
+  --w-e-textarea-handler-bg-color: var(--color-primary);
+  --w-e-toolbar-color: var(--color-text-secondary);
+  --w-e-toolbar-bg-color: var(--color-bg-surface);
+  --w-e-toolbar-active-color: var(--color-text-primary);
+  --w-e-toolbar-active-bg-color: var(--color-border-subtle);
+  --w-e-toolbar-disabled-color: var(--color-text-tertiary);
+  --w-e-toolbar-border-color: var(--color-border);
+  --w-e-modal-button-bg-color: var(--color-bg-surface);
+  --w-e-modal-button-border-color: var(--color-border);
 }
 
 h1,
@@ -31,41 +24,54 @@ h3,
 h4,
 h5,
 h6 {
-  font-weight: bold;
+  font-weight: 600;
 }
 
 .w-e-textarea-divider {
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   margin: 15px auto;
-  padding: 0px;
+  padding: 0;
 }
 
-.w-e-text-container [data-slate-editor] .w-e-selected-image-container .left-top {
-  display: none;
-  cursor: nwse-resize;
-  left: 0;
-  top: 0;
-}
-
-.w-e-text-container [data-slate-editor] .w-e-selected-image-container .right-top {
-  display: none;
-  cursor: nesw-resize;
-  right: 0;
-  top: 0;
-}
-
-.w-e-text-container [data-slate-editor] .w-e-selected-image-container .left-bottom {
-  display: none;
-  bottom: 0;
-  cursor: nesw-resize;
-  left: 0;
-}
-
+.w-e-text-container [data-slate-editor] .w-e-selected-image-container .left-top,
+.w-e-text-container [data-slate-editor] .w-e-selected-image-container .right-top,
+.w-e-text-container [data-slate-editor] .w-e-selected-image-container .left-bottom,
 .w-e-text-container [data-slate-editor] .w-e-selected-image-container .right-bottom {
-  display: none;
-  bottom: 0;
-  cursor: nwse-resize;
-  right: 0;
+  z-index: 2;
+}
+
+/* 工具栏与正文分层：下拉/悬浮菜单不压过工具栏，正文在独立滚动层 */
+.w-e-toolbar {
+  position: relative;
+  z-index: 30;
+}
+
+.w-e-hover-bar {
+  z-index: 25;
+}
+
+.w-e-text-container {
+  position: relative;
+  z-index: 1;
+}
+
+.w-e-text-container [data-slate-editor] img,
+.w-e-text-container [data-slate-editor] .w-e-image-container,
+.w-e-textarea-video-container {
+  max-width: 100%;
+}
+
+.w-e-text-container [data-slate-editor] .w-e-selected-image-container {
+  overflow: visible;
+}
+
+.w-e-toolbar .w-e-bar-item button {
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.w-e-toolbar .w-e-bar-item button:hover {
+  background: var(--color-border-subtle);
 }
 
 @import '../../shared/styles/yuque-article.less';

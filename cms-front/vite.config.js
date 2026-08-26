@@ -17,8 +17,14 @@ function resolveEntryHtml (appTarget) {
     : path.resolve(__dirname, 'index.html')
 }
 
-function resolveOutDir (appTarget, docsSpace) {
+function resolveOutDir (appTarget, docsSpace, env) {
   if (appTarget === 'docs') {
+    if (env.VITE_DOCS_EMBED_AUTO === 'true') {
+      return `dist/docs-embed-auto-${docsSpace || 'unknown'}`
+    }
+    if (env.VITE_DOCS_EMBED === 'true') {
+      return `dist/docs-embed-${docsSpace || 'unknown'}`
+    }
     return `dist/docs-${docsSpace || 'unknown'}`
   }
   return 'dist/admin'
@@ -86,7 +92,7 @@ export default defineConfig(({ mode, command }) => {
     },
     build: {
       sourcemap: command === 'build' ? false : 'inline',
-      outDir: resolveOutDir(appTarget, docsSpace),
+      outDir: resolveOutDir(appTarget, docsSpace, env),
       emptyOutDir: true,
       rollupOptions: {
         input: resolveEntryHtml(appTarget),

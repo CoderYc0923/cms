@@ -1,14 +1,14 @@
 <template>
-  <div class="space-workspace flex-box-row">
-    <div class="flex-25 space-workspace__sidebar">
+  <div class="space-workspace">
+    <aside class="space-workspace__sidebar">
       <Catalogue
         ref="catalogueRef"
         :space-slug="spaceSlug"
         @articleClick="handleArticleClick"
         @nodeDeleted="handleNodeDeleted"
       />
-    </div>
-    <div class="flex-75 space-workspace__main">
+    </aside>
+    <section class="space-workspace__main">
       <Preview
         v-show="hasArticle"
         :content="content"
@@ -23,7 +23,7 @@
         @published="handlePublished"
       />
       <Empty v-show="!hasArticle" />
-    </div>
+    </section>
   </div>
 </template>
 
@@ -83,18 +83,28 @@ onMounted(async () => {
 
 watch(spaceSlug, () => {
   resetArticle()
-  refreshTree()
 })
 </script>
 
 <style scoped lang="less">
 .space-workspace {
+  display: flex;
   height: 100%;
+  min-height: 0;
 
-  &__sidebar,
-  &__main {
+  &__sidebar {
+    flex: 0 0 var(--sidebar-width);
+    width: var(--sidebar-width);
+    min-width: 0;
     height: 100%;
-    min-height: 0;
+    background: var(--color-bg-surface);
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    background: var(--color-bg-surface);
   }
 }
 </style>

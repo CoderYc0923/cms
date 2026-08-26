@@ -49,6 +49,9 @@ import { Editor, Toolbar } from "@wangeditor/editor-for-vue";
 import { message } from "ant-design-vue";
 import { uploadToOss, UploadAbortError } from "@/utils/ossUpload";
 import { rewriteAdminFileUrls } from "@/utils/fileUrl";
+import { registerEditorMenus } from "./registerEditorMenus";
+
+registerEditorMenus();
 
 const props = defineProps({
   id: {
@@ -72,6 +75,7 @@ const props = defineProps({
 const mode = "default"; // 或 'simple'
 const toolbarConfig = {
   excludeKeys: ["fullScreen", "insertImage"],
+  modalAppendToBody: true,
 };
 const editorConfig = {
   placeholder: "请输入文章内容...",
@@ -106,15 +110,10 @@ const editorConfig = {
   },
   hoverbarKeys: {
     image: {
-      menuKeys: [
-        "imageWidth30",
-        "imageWidth50",
-        "imageWidth100",
-        //"imageSize",
-        "editImage",
-        //"viewImageLink",
-        "deleteImage",
-      ],
+      menuKeys: ["editImageSize", "deleteImage"],
+    },
+    video: {
+      menuKeys: ["editVideoSize"],
     },
   },
 };
@@ -268,15 +267,60 @@ defineExpose({ getRichTextHtml });
 </script>
 <style lang="less" scoped>
 .rich-text {
-  border: 0px solid #ccc;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 
   &_toolbar {
-    border-bottom: 2px solid rgba(5, 5, 5, 0.06);
+    position: relative;
+    z-index: 30;
+    flex-shrink: 0;
+    min-height: 40px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-surface);
+    overflow: visible;
+
+    :deep(.w-e-toolbar) {
+      overflow: visible;
+      flex-wrap: wrap;
+    }
+
+    :deep(.w-e-drop-panel),
+    :deep(.w-e-select-list),
+    :deep(.w-e-bar-item-menus-container) {
+      z-index: 31;
+    }
   }
 
   &_editor {
-    min-height: 500px;
-    overflow-y: hidden;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+
+    :deep(.w-e-text-container) {
+      flex: 1;
+      min-height: 0;
+      height: auto !important;
+      display: flex;
+      flex-direction: column;
+    }
+
+    :deep(.w-e-scroll) {
+      flex: 1;
+      min-height: 0;
+      height: auto !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    :deep([data-slate-editor]) {
+      min-height: 100%;
+      padding: 12px 0 24px;
+    }
   }
 
   &_upload-panel {
@@ -285,12 +329,73 @@ defineExpose({ getRichTextHtml });
 
   &_upload-name {
     margin-bottom: 12px;
-    color: rgba(0, 0, 0, 0.65);
+    color: var(--color-text-secondary);
+    font-size: var(--text-body);
     word-break: break-all;
   }
 
   &_upload-cancel {
     margin-top: 16px;
+  }
+}
+
+:global(.cms-image-size-modal) {
+  padding: 4px 2px 0;
+}
+
+:global(.cms-image-size-form) {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+:global(.cms-image-size-field) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+:global(.cms-image-size-label) {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+:global(.cms-image-size-input) {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: var(--color-primary);
+  }
+}
+
+:global(.cms-image-size-hint) {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  line-height: 18px;
+}
+
+:global(.cms-image-size-ok) {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 8px 0;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-primary-hover);
   }
 }
 </style>

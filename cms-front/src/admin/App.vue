@@ -10,13 +10,10 @@
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
+import { createAntTheme } from '@/shared/styles/ant-theme.js'
 
 dayjs.locale('zh-cn')
 
 const locale = zhCN
-const myTheme = {
-  token: {
-    borderRadius: 4
-  }
-}
+const myTheme = createAntTheme()
 </script>

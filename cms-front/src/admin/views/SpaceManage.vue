@@ -229,27 +229,58 @@ onMounted(() => {
 <style scoped lang="less">
 .space-manage {
   height: 100%;
-  padding: 24px;
+  padding: 24px 32px;
   overflow: auto;
+  background: var(--color-bg-surface);
 
   &__toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 16px;
+    margin-bottom: 0;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--color-border);
   }
 
   &__title {
-    font-size: 18px;
+    font-size: var(--text-title-md);
     font-weight: 600;
-    color: var(--cms-color-text);
+    color: var(--color-text-primary);
   }
 
   &__actions {
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  :deep(.ant-table) {
+    margin-top: 8px;
+  }
+
+  :deep(.ant-table-thead > tr > th) {
+    font-size: var(--text-label);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  :deep(.ant-table-tbody > tr > td) {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  :deep(.ant-table-tbody > tr:hover > td) {
+    background: var(--color-bg-hover);
+  }
+
+  :deep(.ant-table-cell) a {
+    color: var(--color-primary);
+
+    &:hover {
+      color: var(--color-primary-hover);
+    }
   }
 }
 </style>

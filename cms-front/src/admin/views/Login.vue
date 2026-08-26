@@ -76,27 +76,29 @@ const handleSubmit = async () => {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(160deg, #f5f7fb 0%, #eef2ff 100%);
+  background: var(--color-bg-page);
 
   &__card {
     width: 400px;
     padding: 40px 36px 32px;
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 12px 40px rgba(18, 18, 63, 0.08);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-popup);
   }
 
   &__title {
     margin: 0;
-    font-size: 24px;
+    font-size: var(--text-title-lg);
     font-weight: 600;
-    color: #12123f;
+    color: var(--color-text-primary);
     text-align: center;
   }
 
   &__subtitle {
     margin: 8px 0 28px;
-    color: rgba(0, 0, 0, 0.45);
+    font-size: var(--text-body);
+    color: var(--color-text-secondary);
     text-align: center;
   }
 }
