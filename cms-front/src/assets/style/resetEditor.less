@@ -68,33 +68,9 @@ h6 {
   right: 0;
 }
 
+@import '../../shared/styles/yuque-article.less';
+
+/* 兼容旧 class，与 yuque-article 共用正文样式 */
 .preview-style {
-  color: var(--rich-text-content-color);
-
-  ul,
-  ol {
-    list-style: revert;
-  }
-
-  hr {
-    height: 1px !important;
-    border: none !important;
-    background-color: #e7e9e8;
-  }
-
-  p {
-    margin-bottom: 0.5em;
-  }
-
-  h1,
-  h2 {
-    color: var(--rich-text-title-color);
-  }
-
-  h3,
-  h4,
-  h5,
-  h6 {
-    color: var(--rich-text-content-color);
-  }
+  &:extend(.yuque-article all);
 }

@@ -192,6 +192,10 @@ const props = defineProps({
   spaceSlug: {
     type: String,
     default: ""
+  },
+  initialNodeId: {
+    type: Number,
+    default: undefined
   }
 });
 
@@ -394,6 +398,36 @@ const loadTree = (slug) => {
   getTree(spaceSlug);
 };
 
+const findArticleNode = (items, nodeId) => {
+  for (const item of items || []) {
+    if (item.id === nodeId && item.type === MENU_TYPE.ARTICLE) {
+      return item;
+    }
+    const found = findArticleNode(item.children, nodeId);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+};
+
+const selectNode = nodeId => {
+  if (!nodeId) {
+    return;
+  }
+  const node = findArticleNode(list.value, nodeId);
+  if (!node) {
+    return;
+  }
+  setSelectedKeys([String(node.id)]);
+  emit("articleClick", {
+    nodeId: node.id,
+    title: node.title,
+    type: node.type,
+    sort: node.sort
+  });
+};
+
 watch(
   () => [resolveSpaceSlug(), userStore.isLoggedIn, props.readonly],
   () => {
@@ -401,6 +435,20 @@ watch(
   },
   { immediate: true }
 );
+
+watch(
+  () => [list.value, props.initialNodeId],
+  () => {
+    if (props.initialNodeId && list.value?.length) {
+      selectNode(props.initialNodeId);
+    }
+  }
+);
+
+defineExpose({
+  refresh: () => getTree(),
+  selectNode
+});
 </script>
 
 <style scoped lang="less">

@@ -12,7 +12,7 @@
       :mode="mode"
       @onCreated="handleCreated"
       @onChange="handleChange"
-      class="rich-text_editor preview-style"
+      class="rich-text_editor yuque-article preview-style"
     />
 
     <a-modal

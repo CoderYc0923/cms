@@ -11,6 +11,12 @@ const routes = [
         name: 'DocsHome',
         component: () => import('@/docs/views/DocsHome.vue'),
         meta: { title: '文档首页' }
+      },
+      {
+        path: 'articles/:nodeId',
+        name: 'DocsArticle',
+        component: () => import('@/docs/views/DocsHome.vue'),
+        meta: { title: '文档' }
       }
     ]
   },

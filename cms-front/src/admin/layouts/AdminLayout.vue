@@ -2,7 +2,15 @@
   <div class="admin-layout">
     <header class="admin-layout__header">
       <div class="admin-layout__brand">CMS Admin</div>
-      <nav class="admin-layout__spaces">
+      <nav class="admin-layout__nav">
+        <router-link
+          to="/spaces"
+          class="admin-layout__nav-link"
+          :class="{ 'is-active': isSpacesActive }"
+        >
+          空间管理
+        </router-link>
+        <span class="admin-layout__divider" />
         <router-link
           v-for="item in spaceLinks"
           :key="item.path"
@@ -26,16 +34,42 @@
 </template>
 
 <script setup>
-import RightContent from '@/components/GlobalHeader/RightContent.vue'
+import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import RightContent from '@/admin/components/GlobalHeader/RightContent.vue'
+import { useSpacesStore } from '@/stores/spaces'
 
 const route = useRoute()
+const spacesStore = useSpacesStore()
 
-const spaceLinks = [
-  { path: '/shopchup', title: 'Shopchup' },
-  { path: '/iot', title: '物联网' }
+const fallbackLinks = [
+  { path: '/shopchup', title: 'Shopchup', slug: 'shopchup' },
+  { path: '/iot', title: '物联网', slug: 'iot' }
 ]
 
+const spaceLinks = computed(() => {
+  const enabled = spacesStore.enabledList
+  if (!enabled.length) {
+    return fallbackLinks
+  }
+  return enabled.map(item => ({
+    path: `/${item.slug}`,
+    title: item.name,
+    slug: item.slug
+  }))
+})
+
+const isSpacesActive = computed(() => route.path === '/spaces' || route.path.startsWith('/spaces/'))
+
 const isActive = path => route.path === path || route.path.startsWith(`${path}/`)
+
+onMounted(async () => {
+  try {
+    await spacesStore.fetchList(1)
+  } catch (error) {
+    console.error('load spaces failed', error)
+  }
+})
 </script>
 
 <style scoped lang="less">
@@ -65,20 +99,31 @@ const isActive = path => route.path === path || route.path.startsWith(`${path}/`
     color: var(--cms-color-text);
   }
 
-  &__spaces {
+  &__nav {
     display: flex;
     align-items: center;
     gap: 8px;
     flex: 1;
     min-width: 0;
+    overflow-x: auto;
   }
 
+  &__divider {
+    width: 1px;
+    height: 16px;
+    margin: 0 4px;
+    background: var(--cms-color-border);
+    flex-shrink: 0;
+  }
+
+  &__nav-link,
   &__space-link {
     padding: 6px 14px;
     border-radius: 999px;
     color: var(--cms-color-text-secondary);
     text-decoration: none;
     transition: all 0.2s ease;
+    white-space: nowrap;
 
     &:hover {
       color: var(--cms-color-text);

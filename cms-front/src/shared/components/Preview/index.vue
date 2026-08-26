@@ -9,7 +9,7 @@
         placeholder="请输入文章标题..."
         v-else
       />
-      <div class="preview-style" v-html="richTextHtml" v-show="status !== ACTION_STATUS.EDIT"></div>
+      <div class="yuque-article preview-style" v-html="richTextHtml" v-show="status !== ACTION_STATUS.EDIT"></div>
       <RichText
         v-show="status === ACTION_STATUS.EDIT"
         :content="richTextHtml"
@@ -21,8 +21,23 @@
     </div>
     <div class="preview-sidebar">
       <div class="preview-sidebar-tools" v-if="!readonly">
+        <a-tag :color="isPublished ? 'success' : 'default'">{{ publishStatusLabel }}</a-tag>
         <template v-if="status === ACTION_STATUS.SAVE">
           <a-button type="primary" @click="handleEdit">编辑</a-button>
+          <a-button
+            v-if="!isPublished"
+            class="no-first-btn"
+            type="primary"
+            ghost
+            :loading="publishing"
+            @click="handlePublish"
+          >发布</a-button>
+          <a-button
+            v-else
+            class="no-first-btn"
+            :loading="publishing"
+            @click="handleUnpublish"
+          >下架</a-button>
         </template>
         <template v-else>
           <a-button
@@ -46,13 +61,13 @@
 </template>
 
 <script setup>
-import Anchor from "@/components/Anchor/index.vue";
-import RichText from "@/components/RichText/index.vue";
+import Anchor from '@/shared/components/Anchor/index.vue'
+import RichText from '@/shared/components/RichText/index.vue'
 import { message } from "ant-design-vue";
 import { processHtmlForToc } from "@/utils/util";
 import { rewriteAdminFileUrls, toPublicFileUrl } from "@/utils/fileUrl";
-import { saveArticle, editItem } from "@/service/items";
-import { MENU_TYPE, MENU_TYPE_MSG, ACTION_STATUS } from "@/consts/enum";
+import { saveArticle, editItem, publishArticle, unpublishArticle } from "@/service/items";
+import { MENU_TYPE, MENU_TYPE_MSG, ACTION_STATUS, PUBLISH_STATUS, PUBLISH_STATUS_MSG } from "@/consts/enum";
 
 const EMPTY_EDITOR_HTML = "<p>请输入文章内容...</p>";
 
@@ -91,7 +106,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(["saved"]);
+const emit = defineEmits(["saved", "publishStatusChange", "published"]);
 
 const global = useGlobalStore();
 const contentRef = ref();
@@ -103,6 +118,14 @@ const [title, setTitle] = useState("");
 const [oldTitle, setOldTitle] = useState("");
 const [status, setStatus] = useState(ACTION_STATUS.SAVE);
 const [saving, setSaving] = useState(false);
+const [publishing, setPublishing] = useState(false);
+const [localPublishStatus, setLocalPublishStatus] = useState(PUBLISH_STATUS.DRAFT);
+
+const publishStatusLabel = computed(() =>
+  PUBLISH_STATUS_MSG[localPublishStatus.value] || localPublishStatus.value
+);
+
+const isPublished = computed(() => localPublishStatus.value === PUBLISH_STATUS.PUBLISHED);
 
 const handleInit = content => {
   const normalizedContent = props.readonly
@@ -148,7 +171,7 @@ const handleSave = async () => {
   try {
     await saveArticle(props.nodeId, {
       content,
-      publishStatus: props.publishStatus || "draft"
+      publishStatus: localPublishStatus.value || PUBLISH_STATUS.DRAFT
     });
 
     if (
@@ -193,6 +216,52 @@ const handlePreview = () => {
       : ACTION_STATUS.PREVIEW
   );
 };
+
+const handlePublish = async () => {
+  if (!props.nodeId) {
+    message.error("未选择文章");
+    return;
+  }
+  setPublishing(true);
+  try {
+    await publishArticle(props.nodeId);
+    setLocalPublishStatus(PUBLISH_STATUS.PUBLISHED);
+    emit("publishStatusChange", PUBLISH_STATUS.PUBLISHED);
+    emit("published");
+    message.success("发布成功");
+  } catch (error) {
+    message.error(error?.message || "发布失败");
+  } finally {
+    setPublishing(false);
+  }
+};
+
+const handleUnpublish = async () => {
+  if (!props.nodeId) {
+    message.error("未选择文章");
+    return;
+  }
+  setPublishing(true);
+  try {
+    await unpublishArticle(props.nodeId);
+    setLocalPublishStatus(PUBLISH_STATUS.DRAFT);
+    emit("publishStatusChange", PUBLISH_STATUS.DRAFT);
+    emit("published");
+    message.success("已下架");
+  } catch (error) {
+    message.error(error?.message || "下架失败");
+  } finally {
+    setPublishing(false);
+  }
+};
+
+watch(
+  () => props.publishStatus,
+  nextStatus => {
+    setLocalPublishStatus(nextStatus || PUBLISH_STATUS.DRAFT);
+  },
+  { immediate: true }
+);
 
 watch(
   () => [props.content, props.title],
@@ -249,10 +318,12 @@ watch(
     }
 
     &-tools {
-      height: 48px;
+      min-height: 48px;
       padding-left: 12px;
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
     }
   }
 }

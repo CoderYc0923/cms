@@ -8,7 +8,13 @@ export function resolveSpaceSlug (explicitSlug) {
   return segments[segments.length - 1] || ''
 }
 
-export function resolveSpaceId (explicitSlug) {
+export function resolveSpaceId (explicitSlug, spacesStore) {
   const slug = resolveSpaceSlug(explicitSlug)
+  if (spacesStore?.getSpaceId) {
+    const id = spacesStore.getSpaceId(slug)
+    if (id != null) {
+      return id
+    }
+  }
   return SPACE_SLUG_ID_MAP[slug] ?? null
 }

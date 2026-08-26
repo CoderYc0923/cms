@@ -11,19 +11,31 @@ const routes = [
   {
     path: '/',
     component: AdminLayout,
-    redirect: '/shopchup',
+    redirect: '/spaces',
     children: [
+      {
+        path: 'spaces',
+        name: 'SpaceManage',
+        component: () => import('@/admin/views/SpaceManage.vue'),
+        meta: { title: '空间管理' }
+      },
       {
         path: 'shopchup',
         name: 'Shopchup',
-        component: () => import('@/views/Shopchup/index.vue'),
-        meta: { title: 'Shopchup' }
+        component: () => import('@/views/SpaceWorkspace/index.vue'),
+        meta: { title: 'Shopchup', spaceSlug: 'shopchup' }
       },
       {
         path: 'iot',
         name: 'Iot',
-        component: () => import('@/views/Iot/index.vue'),
-        meta: { title: '物联网' }
+        component: () => import('@/views/SpaceWorkspace/index.vue'),
+        meta: { title: '物联网', spaceSlug: 'iot' }
+      },
+      {
+        path: ':spaceSlug',
+        name: 'SpaceDynamic',
+        component: () => import('@/views/SpaceWorkspace/index.vue'),
+        meta: { title: '空间' }
       }
     ]
   },

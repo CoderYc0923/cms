@@ -46,3 +46,13 @@ export const CATALOGUE_MODE = {
   EDIT: 0,
   PREVIEW: 1,
 }
+
+export const PUBLISH_STATUS = {
+  DRAFT: 'draft',
+  PUBLISHED: 'published',
+}
+
+export const PUBLISH_STATUS_MSG = {
+  [PUBLISH_STATUS.DRAFT]: '草稿',
+  [PUBLISH_STATUS.PUBLISHED]: '已发布',
+}

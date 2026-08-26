@@ -1,7 +1,12 @@
 <template>
   <div class="docs-home">
     <aside class="docs-home__sidebar">
-      <Catalogue readonly :space-slug="docsSpace" @articleClick="handleArticleClick" />
+      <Catalogue
+        readonly
+        :space-slug="docsSpace"
+        :initial-node-id="initialNodeId"
+        @articleClick="handleArticleClick"
+      />
     </aside>
     <section class="docs-home__content">
       <Preview
@@ -16,18 +21,38 @@
 </template>
 
 <script setup>
-import Catalogue from '@/components/Catalogue/index.vue'
-import Preview from '@/components/Preview/index.vue'
-import Empty from '@/components/Empty/index.vue'
+import { computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import Catalogue from '@/shared/components/Catalogue/index.vue'
+import Preview from '@/shared/components/Preview/index.vue'
+import Empty from '@/shared/components/Empty/index.vue'
 import { getPublicArticle } from '@/shared/api/public'
 
 const docsSpace = import.meta.env.VITE_DOCS_SPACE || 'unknown'
+const route = useRoute()
+const router = useRouter()
 
 const [content, setContent] = useState('')
 const [title, setTitle] = useState('')
 const [hasArticle, setHasArticle] = useState(false)
 
+const initialNodeId = computed(() => {
+  const raw = route.params.nodeId
+  if (!raw) {
+    return undefined
+  }
+  const id = Number(raw)
+  return Number.isFinite(id) ? id : undefined
+})
+
 const handleArticleClick = node => {
+  if (!node?.nodeId) {
+    return
+  }
+  router.replace({
+    name: 'DocsArticle',
+    params: { nodeId: node.nodeId }
+  })
   handleGetArticle(node)
 }
 
@@ -49,6 +74,17 @@ const handleGetArticle = async node => {
     setContent('')
   }
 }
+
+watch(
+  () => route.params.nodeId,
+  nodeId => {
+    if (!nodeId) {
+      setHasArticle(false)
+      setTitle('')
+      setContent('')
+    }
+  }
+)
 </script>
 
 <style scoped lang="less">

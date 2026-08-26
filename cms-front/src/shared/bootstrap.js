@@ -6,6 +6,7 @@ import { components } from '@/components/index'
 import { directives } from '@/directives/index'
 import '@/assets/style/global.less'
 import '@/shared/styles/tokens.less'
+import '@/shared/styles/yuque-article.less'
 
 export function bootstrapApp ({ App, router, permission, registerGlobals = true }) {
   const pinia = createPinia()

@@ -1,0 +1,5 @@
+export { default as Catalogue } from './Catalogue/index.vue'
+export { default as Preview } from './Preview/index.vue'
+export { default as RichText } from './RichText/index.vue'
+export { default as Anchor } from './Anchor/index.vue'
+export { default as Empty } from './Empty/index.vue'
