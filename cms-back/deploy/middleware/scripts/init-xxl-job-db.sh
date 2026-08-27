@@ -13,7 +13,7 @@ get_env() {
   local key="$1" default="$2"
   if [[ -f "$ENV_FILE" ]]; then
     local val
-    val="$(grep -E "^${key}=" "$ENV_FILE" | head -n1 | cut -d= -f2-)"
+    val="$(grep -E "^${key}=" "$ENV_FILE" | head -n1 | cut -d= -f2- | tr -d '\r')"
     if [[ -n "$val" ]]; then echo "$val"; return; fi
   fi
   echo "$default"
