@@ -610,9 +610,10 @@ defineExpose({
     }
 
     .menu-item-label {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--color-text-tertiary);
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 20px;
+      color: var(--color-text-primary);
     }
   }
 

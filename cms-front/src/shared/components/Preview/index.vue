@@ -317,7 +317,13 @@ const handleUpdateContent = content => {
 
   const html = richTextRef.value?.getRichTextHtml()
 
-  const nextHtml = content || html || oldRichTextHtml.value
+  const nextHtml = content ?? html ?? richTextHtml.value
+
+  if (!nextHtml) {
+
+    return
+
+  }
 
   handleInit(props.readonly ? nextHtml : toPublicFileUrl(nextHtml))
 
@@ -451,15 +457,21 @@ const handleCancel = () => {
 
 const handlePreview = () => {
 
-  handleUpdateContent()
+  if (status.value === ACTION_STATUS.EDIT) {
 
+    // 进入预览：从编辑器同步最新内容
 
+    handleUpdateContent()
 
-  setStatus(
+    setStatus(ACTION_STATUS.PREVIEW)
 
-    status.value === ACTION_STATUS.PREVIEW ? ACTION_STATUS.EDIT : ACTION_STATUS.PREVIEW
+    return
 
-  )
+  }
+
+  // 继续编辑：richTextHtml 已是预览内容，勿再 sync（编辑器未挂载会误用旧稿）
+
+  setStatus(ACTION_STATUS.EDIT)
 
 }
 
