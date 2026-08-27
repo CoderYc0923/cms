@@ -529,9 +529,9 @@ docker compose up -d db
 
 ## 12. 下一步
 
-1. 同机或 CI 构建 `cms-back-admin.jar` + systemd。  
+1. **应用 jar + systemd：** 见 [APP-DEPLOY.md](./APP-DEPLOY.md)（`/opt/cms-back`）。  
 2. 构建 `cms-front` 静态资源 + Nginx。  
-3. 配置 OSS 写入 `cms-back/.env`。  
+3. 配置 OSS 写入 `/opt/cms-back/.env`。  
 4. XXL-Job 控制台配置清理任务（若 §8 未做）。
 
 ---
