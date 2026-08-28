@@ -111,10 +111,30 @@ ssh -i $env:USERPROFILE\.ssh\cms_deploy root@<公网IP>
 
 | 文件 | 触发条件 | 行为 |
 |------|----------|------|
-| `.github/workflows/deploy-backend.yml` | 仅手动 Run workflow | 打包 jar → 上传 → restart |
+| `.github/workflows/deploy-backend.yml` | 仅手动 Run workflow | 构建 jar → **先停服务** → scp → 启动 → 最长约 3 分钟健康检查 |
 | `.github/workflows/deploy-frontend.yml` | 仅手动 Run workflow | build admin + docs-shopchup → 上传 → reload nginx |
 
 **push 到 main 不会自动部署**；需要发版时到 Actions 页分别点 Run。
+
+构建在 GitHub Runner 上完成，**不占用** 2G 服务器 CPU/内存；服务器只做文件替换与进程启停。
+
+### 4.1 2G 小机器注意
+
+| 项 | 建议 |
+|----|------|
+| `cms-back.service` | `-Xms128m -Xmx256m`（仓库 `deploy/app/cms-back.service`） |
+| RocketMQ | NameServer `64m/128m`，Broker `128m/256m`（见 `middleware/.env.example`） |
+| 宝塔面板 | 同机建议 `bt stop`，避免监控脚本占内存/IO |
+| CI health 失败 | 先看 `free -h` / Swap；再看 `ss -lntp \| grep 8080` |
+| 长期 | 升配 4G，或 MQ/XXL 与应用拆机 |
+
+服务器若仍是旧堆，同步一次：
+
+```bash
+cp /path/to/repo/cms-back/deploy/app/cms-back.service /etc/systemd/system/cms-back.service
+systemctl daemon-reload
+systemctl restart cms-back
+```
 
 ---
 
@@ -157,7 +177,7 @@ ssh -i $env:USERPROFILE\.ssh\cms_deploy root@<公网IP>
 | 现象 | 处理 |
 |------|------|
 | Actions SSH 失败 | 检查 Secrets、公钥是否在服务器 `authorized_keys` |
-| 后端 Restart 后 health 失败（curl exit 7） | 看 `/opt/cms-back/logs/app.log`；确认 jar 在 `/opt/cms-back/*.jar` 而非嵌套 `cms-back/cms-back-admin/target/`（Upload 需 `strip_components: 3`） |
+| 后端 health 失败（curl exit 7） | 1) `free -h` 是否可用内存过低 2) `journalctl -u cms-back -n 50` 3) jar 是否完整 `unzip -tq /opt/cms-back/cms-back-admin.jar` |
 | 前端 404 刷新丢失 | 确认 nginx `try_files` 与 root 路径正确 |
 | 登录超时 | 后端未启动；或 Nginx `/api/` 未反代到 8080 |
 | OSS 上传失败 | 补 OSS CORS 来源为公网 IP |

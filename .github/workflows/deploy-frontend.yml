@@ -1,11 +1,13 @@
 name: Deploy Frontend
 
+# 构建在 GitHub；服务器只解压静态资源 + reload nginx（几乎不占内存）。
 on:
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -23,13 +25,10 @@ jobs:
           cache: pnpm
           cache-dependency-path: cms-front/pnpm-lock.yaml
 
-      - name: Install dependencies
-        working-directory: cms-front
-        run: pnpm install --frozen-lockfile
-
-      - name: Build admin & docs (shopchup)
+      - name: Install & build
         working-directory: cms-front
         run: |
+          pnpm install --frozen-lockfile
           pnpm build:admin
           pnpm build:docs:shopchup
 
@@ -46,7 +45,8 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           source: admin.tar.gz,docs-shopchup.tar.gz
-          target: /tmp/cms-front-deploy
+          target: /tmp/cms-front-deploy/
+          overwrite: true
 
       - name: Extract & reload nginx
         uses: appleboy/ssh-action@v1.0.3
@@ -58,7 +58,8 @@ jobs:
           script: |
             set -e
             mkdir -p /opt/cms-front/admin /opt/cms-front/docs-shopchup
-            rm -rf /opt/cms-front/admin/* /opt/cms-front/docs-shopchup/*
+            find /opt/cms-front/admin -mindepth 1 -delete
+            find /opt/cms-front/docs-shopchup -mindepth 1 -delete
             tar -xzf /tmp/cms-front-deploy/admin.tar.gz -C /opt/cms-front/admin
             tar -xzf /tmp/cms-front-deploy/docs-shopchup.tar.gz -C /opt/cms-front/docs-shopchup
             rm -f /tmp/cms-front-deploy/*.tar.gz

@@ -111,7 +111,9 @@ OSS_ACCESS_KEY_SECRET=xxx
 cd /opt/cms-back
 set -a && source .env && set +a
 
-java -Xms256m -Xmx512m -jar cms-back-admin.jar
+java -Xms128m -Xmx256m -jar cms-back-admin.jar
+# 内存充裕可改为 -Xms256m -Xmx512m
+
 # 看到 Started ... 且无 Liquibase 报错后 Ctrl+C
 ```
 

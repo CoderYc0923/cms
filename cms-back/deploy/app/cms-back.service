@@ -9,8 +9,8 @@ User=root
 WorkingDirectory=/opt/cms-back
 EnvironmentFile=/opt/cms-back/.env
 
-# 2G 轻量机建议堆；jar 名按实际上传文件修改
-ExecStart=/usr/bin/java -Xms256m -Xmx512m -jar /opt/cms-back/cms-back-admin.jar --spring.profiles.active=prod
+# 2G 同机（MySQL/Redis/MQ）建议 128/256；内存充裕可改为 256/512
+ExecStart=/usr/bin/java -Xms128m -Xmx256m -jar /opt/cms-back/cms-back-admin.jar --spring.profiles.active=prod
 
 SuccessExitStatus=143
 Restart=on-failure
