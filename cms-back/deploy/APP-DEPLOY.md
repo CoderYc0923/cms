@@ -182,7 +182,9 @@ curl -s http://127.0.0.1:8080/actuator/health
 | 8080 | 仅内网 / Nginx 反代；**不要**对公网裸奔 |
 | 3307/6379/9876/8088 | **不对公网开放**（中间件文档已说明） |
 
-后续前端 Nginx 反代示例：
+前端 + GitHub Actions 见 **[CI-CD.md](./CI-CD.md)**（Nginx 完整配置：`nginx/cms-front.conf`）。
+
+API 反代核心：
 
 ```nginx
 location /api/ {

@@ -1,0 +1,72 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cms-front/**'
+      - 'cms-back/deploy/nginx/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: cms-front/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: cms-front
+        run: pnpm install --frozen-lockfile
+
+      - name: Build admin & docs (shopchup)
+        working-directory: cms-front
+        run: |
+          pnpm build:admin
+          pnpm build:docs:shopchup
+
+      - name: Pack artifacts
+        run: |
+          tar -czf admin.tar.gz -C cms-front/dist/admin .
+          tar -czf docs-shopchup.tar.gz -C cms-front/dist/docs-shopchup .
+
+      - name: Upload artifacts
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          source: admin.tar.gz,docs-shopchup.tar.gz
+          target: /tmp/cms-front-deploy
+
+      - name: Extract & reload nginx
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -e
+            mkdir -p /opt/cms-front/admin /opt/cms-front/docs-shopchup
+            rm -rf /opt/cms-front/admin/* /opt/cms-front/docs-shopchup/*
+            tar -xzf /tmp/cms-front-deploy/admin.tar.gz -C /opt/cms-front/admin
+            tar -xzf /tmp/cms-front-deploy/docs-shopchup.tar.gz -C /opt/cms-front/docs-shopchup
+            rm -f /tmp/cms-front-deploy/*.tar.gz
+            nginx -t
+            systemctl reload nginx
