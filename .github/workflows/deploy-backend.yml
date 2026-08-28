@@ -1,6 +1,5 @@
 name: Deploy Backend
 
-# 面向 2G 轻量机：构建在 GitHub；服务器只替换 jar + 启动，并拉长健康检查。
 on:
   workflow_dispatch:
 
@@ -25,24 +24,6 @@ jobs:
         run: |
           mvn -B clean package -pl cms-back-admin -am -DskipTests
           cp cms-back-admin/target/cms-back-admin-0.0.1-SNAPSHOT.jar "$GITHUB_WORKSPACE/cms-back-admin.jar"
-          ls -lh "$GITHUB_WORKSPACE/cms-back-admin.jar"
-
-      # 先停服务腾内存，再 scp（小机器同机还有 MySQL/Redis/MQ）
-      - name: Stop cms-back
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          script: |
-            systemctl stop cms-back || true
-            sleep 2
-            # 清掉可能残留的手动 java
-            pkill -f '/opt/cms-back/cms-back-admin.jar' || true
-            pkill -f 'cms-back-admin-0.0.1-SNAPSHOT.jar' || true
-            free -h
-            mkdir -p /tmp/cms-back-deploy /opt/cms-back/logs
 
       - name: Upload jar
         uses: appleboy/scp-action@v0.1.7
@@ -55,7 +36,7 @@ jobs:
           target: /tmp/cms-back-deploy/
           overwrite: true
 
-      - name: Install & start
+      - name: Stop, replace, start
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -65,43 +46,17 @@ jobs:
           command_timeout: 15m
           script: |
             set -e
-            JAR_SRC=/tmp/cms-back-deploy/cms-back-admin.jar
-            JAR_DST=/opt/cms-back/cms-back-admin.jar
-
-            echo "=== deploy $(date -Iseconds) ===" | tee -a /opt/cms-back/logs/app.log
-            test -f "$JAR_SRC"
-            SIZE=$(stat -c%s "$JAR_SRC")
-            echo "jar size=$SIZE"
-            test "$SIZE" -gt 10000000
-            unzip -tq "$JAR_SRC"
-
-            # 单文件替换，避免双份 jar 占盘
-            mv -f "$JAR_SRC" "$JAR_DST"
-            # 去掉易混淆的旧 SNAPSHOT / 断软链
-            rm -f /opt/cms-back/cms-back-admin-0.0.1-SNAPSHOT.jar
-            ls -lh "$JAR_DST"
-            free -h
-
+            test -f /tmp/cms-back-deploy/cms-back-admin.jar
+            systemctl stop cms-back
+            mv -f /tmp/cms-back-deploy/cms-back-admin.jar /opt/cms-back/cms-back-admin.jar
             systemctl start cms-back
-            # 2G + Swap 时启动可能要 2～3 分钟
             for i in $(seq 1 36); do
               if curl -sf --max-time 3 http://127.0.0.1:8080/actuator/health; then
-                echo "health ok (attempt $i)"
-                free -h
+                echo "health ok"
                 exit 0
               fi
-              # 进程没了就早退
-              if ! systemctl is-active --quiet cms-back; then
-                echo "cms-back is not active"
-                break
-              fi
-              echo "waiting health... $i/36"
               sleep 5
             done
-
-            echo "=== health failed ==="
             systemctl status cms-back --no-pager -l || true
-            journalctl -u cms-back -n 50 --no-pager || true
             tail -n 50 /opt/cms-back/logs/app.log || true
-            free -h
             exit 1
