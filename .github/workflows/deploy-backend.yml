@@ -50,13 +50,16 @@ jobs:
             systemctl stop cms-back
             mv -f /tmp/cms-back-deploy/cms-back-admin.jar /opt/cms-back/cms-back-admin.jar
             systemctl start cms-back
-            for i in $(seq 1 36); do
-              if curl -sf --max-time 3 http://127.0.0.1:8080/actuator/health; then
-                echo "health ok"
+            # 2G 机冷启动常要 2～3 分钟；/actuator/health 含 DB 检查可能 >10s
+            # 故单次 curl 超时要大于健康检查耗时，总等待约 5 分钟
+            for i in $(seq 1 60); do
+              if curl -sf --max-time 20 http://127.0.0.1:8080/actuator/health; then
+                echo "health ok (attempt $i)"
                 exit 0
               fi
+              echo "waiting health... $i/60"
               sleep 5
             done
             systemctl status cms-back --no-pager -l || true
-            tail -n 50 /opt/cms-back/logs/app.log || true
+            tail -n 80 /opt/cms-back/logs/app.log || true
             exit 1
