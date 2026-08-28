@@ -74,7 +74,8 @@ const props = defineProps({
 
 const mode = "default"; // 或 'simple'
 const toolbarConfig = {
-  excludeKeys: ["fullScreen", "insertImage"],
+  // insertImage / insertVideo：禁止填链接插入，只保留 uploadImage / uploadVideo
+  excludeKeys: ["fullScreen", "insertImage", "insertVideo"],
   modalAppendToBody: true,
 };
 const editorConfig = {
@@ -112,8 +113,9 @@ const editorConfig = {
     image: {
       menuKeys: ["editImageSize", "deleteImage"],
     },
+    // 与图片一致：只保留改尺寸 + 删除（去掉 enter 等默认项）
     video: {
-      menuKeys: ["editVideoSize"],
+      menuKeys: ["editVideoSize", "deleteVideo"],
     },
   },
 };

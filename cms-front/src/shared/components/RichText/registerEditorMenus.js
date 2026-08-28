@@ -1,5 +1,6 @@
 import { Boot } from '@wangeditor/editor'
 import { editImageSizeMenuConf } from './menus/editImageSize'
+import { deleteVideoMenuConf } from './menus/deleteVideo'
 
 let registered = false
 
@@ -9,7 +10,7 @@ export function registerEditorMenus () {
   }
 
   Boot.registerModule({
-    menus: [editImageSizeMenuConf]
+    menus: [editImageSizeMenuConf, deleteVideoMenuConf]
   })
 
   registered = true
