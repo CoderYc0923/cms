@@ -247,7 +247,7 @@ public class ArticleServiceImpl implements ArticleService {
                 .set(Article::getUpdatedBy, userId));
 
         NodeStatus nodeStatus = publishStatus == PublishStatus.PUBLISHED ? NodeStatus.VISIBLE : NodeStatus.HIDDEN;
-        updateNodeStatus(userId, nodeStatus);
+        updateNodeStatus(nodeId, nodeStatus);
 
         if (recomputeMediaAccess) {
             /** 发布状态改变时，重算该文章引用的所有文件 */
