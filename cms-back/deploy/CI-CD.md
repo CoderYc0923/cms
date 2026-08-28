@@ -159,6 +159,7 @@ ssh -i $env:USERPROFILE\.ssh\cms_deploy root@<公网IP>
 | 现象 | 处理 |
 |------|------|
 | Actions SSH 失败 | 检查 Secrets、公钥是否在服务器 `authorized_keys` |
+| 后端 Restart 后 health 失败（curl exit 7） | 看 `/opt/cms-back/logs/app.log`；确认 jar 在 `/opt/cms-back/*.jar` 而非嵌套 `cms-back/cms-back-admin/target/`（Upload 需 `strip_components: 3`） |
 | 前端 404 刷新丢失 | 确认 nginx `try_files` 与 root 路径正确 |
 | 登录超时 | 后端未启动；或 Nginx `/api/` 未反代到 8080 |
 | OSS 上传失败 | 补 OSS CORS 来源为公网 IP |
