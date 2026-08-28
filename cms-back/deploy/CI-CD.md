@@ -7,7 +7,7 @@
 ## 1. 整体架构
 
 ```text
-GitHub (main push)
+GitHub Actions（仅手动 Run workflow）
   ├─ deploy-backend.yml   → mvn package → scp jar → systemctl restart cms-back
   └─ deploy-frontend.yml  → pnpm build → scp 静态文件 → nginx reload
 
@@ -111,12 +111,10 @@ ssh -i $env:USERPROFILE\.ssh\cms_deploy root@<公网IP>
 
 | 文件 | 触发条件 | 行为 |
 |------|----------|------|
-| `.github/workflows/deploy-backend.yml` | `cms-back/**` 变更 push main | 打包 jar → 上传 → restart |
-| `.github/workflows/deploy-frontend.yml` | `cms-front/**` 变更 push main | build admin + docs-shopchup → 上传 → reload nginx |
+| `.github/workflows/deploy-backend.yml` | 仅手动 Run workflow | 打包 jar → 上传 → restart |
+| `.github/workflows/deploy-frontend.yml` | 仅手动 Run workflow | build admin + docs-shopchup → 上传 → reload nginx |
 
-两者均支持 **Actions 页手动 Run workflow**（`workflow_dispatch`）。
-
-**只改后端不会触发前端构建，反之亦然。**
+**push 到 main 不会自动部署**；需要发版时到 Actions 页分别点 Run。
 
 ---
 
@@ -147,8 +145,8 @@ ssh -i $env:USERPROFILE\.ssh\cms_deploy root@<公网IP>
 ## 7. 日常开发流程
 
 ```text
-改后端 → push main → deploy-backend 自动发版
-改前端 → push main → deploy-frontend 自动发版
+改代码 → push main（只更新仓库，不部署）
+要发版 → Actions → Deploy Backend / Deploy Frontend → Run workflow
 本地联调 → 仍可用 SSH 隧道 + pnpm dev（见 MIDDLEWARE-DEPLOY §7）
 ```
 
