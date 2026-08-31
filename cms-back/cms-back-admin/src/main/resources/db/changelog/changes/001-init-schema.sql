@@ -1,7 +1,7 @@
 -- 001-init-schema.sql
 
 -- 用户表
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id BIGINT NOT NULL AUTO_INCREMENT,
     username VARCHAR(64) NOT NULL,
     password VARCHAR(255) NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE users (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户表';
 
 -- 空间表
-CREATE TABLE spaces (
+CREATE TABLE IF NOT EXISTS spaces (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(128) NOT NULL,
     slug VARCHAR(64) NOT NULL COMMENT '唯一标识',
@@ -28,7 +28,7 @@ CREATE TABLE spaces (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '空间表';
 
 -- 节点表
-CREATE TABLE nodes (
+CREATE TABLE IF NOT EXISTS nodes (
     id BIGINT NOT NULL AUTO_INCREMENT,
     space_id BIGINT NOT NULL,
     parent_id BIGINT NULL DEFAULT NULL,
@@ -44,7 +44,7 @@ CREATE TABLE nodes (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '节点表';
 
 -- 文章表
-CREATE TABLE articles (
+CREATE TABLE IF NOT EXISTS articles (
   id BIGINT NOT NULL AUTO_INCREMENT,
   node_id BIGINT NOT NULL,
   space_id BIGINT NOT NULL,
@@ -62,7 +62,7 @@ CREATE TABLE articles (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '文章表';
 
 -- 发布记录表
-CREATE TABLE publish_events (
+CREATE TABLE IF NOT EXISTS publish_events (
   id BIGINT NOT NULL AUTO_INCREMENT,
   article_id BIGINT NOT NULL,
   space_id BIGINT NOT NULL,
